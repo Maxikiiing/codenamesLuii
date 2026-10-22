@@ -47,7 +47,7 @@ Codenames auch dann spielbar machen, wenn zu wenige Leute für zwei Rater-Teams 
    - Hinweis ist genau ein Wort (keine Leerzeichen), 1–30 Zeichen. Bindestrich-Wörter sind erlaubt.
    - Verglichen wird normalisiert: ohne Groß-/Kleinschreibung, Umlaute ersetzt (ä=ae, ö=oe, ü=ue, ß=ss).
    - Der Hinweis darf keinem noch verdeckten Feldwort gleichen.
-   - Wortteile: Ist das kürzere der beiden Wörter mindestens 4 Zeichen lang und steht es am **Anfang oder Ende** des längeren, wird der Hinweis abgelehnt (z. B. „Haus“ bei „Haustür“, „Tür“ ist zu kurz und erlaubt). Teilwörter in der Mitte („Rad“ in „Paradies“) und kürzere Teile sind erlaubt.
+   - Wortteile: Ist das kürzere der beiden Wörter mindestens 4 Zeichen lang (gezählt **vor** der Normalisierung, „Tür“ hat also 3 Zeichen) und steht es (normalisiert verglichen) am **Anfang oder Ende** des längeren, wird der Hinweis abgelehnt (z. B. „Haus“ bei „Haustür“, „Tür“ ist zu kurz und erlaubt). Teilwörter in der Mitte („Rad“ in „Paradies“) und kürzere Teile sind erlaubt.
 3. **Anzeige:** Der Screen zeigt Hinweis und Zahl des aktiven Teams gut sichtbar an.
 4. **KI rät:** Der Server fragt das Modell schrittweise. Jeder Schritt liefert einen Gedanken (1–3 Sätze, deutsch) und entweder ein Wort zum Aufdecken oder die Entscheidung aufzuhören.
    - Der Gedanke erscheint auf dem Screen, **bevor** die Karte aufgedeckt wird. Zwischen Anzeige und Aufdeckung liegt eine Pause, damit man mitlesen kann (Richtwert: 50 ms pro Zeichen, mindestens 2 s, höchstens 10 s).
@@ -98,7 +98,7 @@ Codenames auch dann spielbar machen, wenn zu wenige Leute für zwei Rater-Teams 
 - [ ] **AK2:** *Gegeben* Start mit `--profile ki` und das Modell ist geladen, *wenn* der Screen oder ein Vorgeber in der Lobby „KI-Rater“ wählt, *dann* zeigen Screen und beide Player den Modus an.
 - [ ] **AK2b:** *Gegeben* Start mit `--profile ki`, die Lobby ist offen und das Modell wird noch geladen, *wenn* der Download fertig ist, *dann* wird „KI-Rater“ innerhalb von 10 s ohne Neuladen wählbar.
 - [ ] **AK3:** *Gegeben* Modus „Klassisch“, *wenn* eine Runde gespielt wird, *dann* verhält sich das Spiel wie in Spec 001 (bestehende Tests bleiben grün).
-- [ ] **AK4:** *Gegeben* KI-Modus und Team A am Zug, *wenn* Vorgeber A ein Wort eingibt, das einem verdeckten Feldwort entspricht oder es enthält, *dann* wird der Hinweis abgelehnt und am Player eine Fehlermeldung gezeigt.
+- [ ] **AK4:** *Gegeben* KI-Modus und Team A am Zug, *wenn* Vorgeber A ein Wort eingibt, das einem verdeckten Feldwort gleicht oder nach der Wortteil-Regel aus R2 verboten ist, *dann* wird der Hinweis abgelehnt und am Player eine Fehlermeldung gezeigt.
 - [ ] **AK5:** *Gegeben* ein gültiger Hinweis mit Zahl 2, *wenn* die KI drei eigene Karten in Folge wählt, *dann* endet der Zug nach dem dritten Versuch automatisch (Zahl + 1).
 - [ ] **AK6:** *Gegeben* die KI liefert `guess: null`, *wenn* das vor dem zweiten Versuch passiert, *dann* endet der Zug, und der Gedanke steht auf dem Screen.
 - [ ] **AK7:** *Gegeben* ein KI-Zug läuft, *wenn* ein Gedanke eintrifft, *dann* erscheint er auf dem Screen mindestens 2 s, bevor die zugehörige Karte aufgedeckt wird.
