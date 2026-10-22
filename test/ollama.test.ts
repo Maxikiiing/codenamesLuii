@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { probeOllama, REASON_LOADING, REASON_UNREACHABLE } from "../src/server/ollama.js";
+import { ollamaChatClient, probeOllama, REASON_LOADING, REASON_UNREACHABLE } from "../src/server/ollama.js";
 
 const resolves = async () => ({ address: "10.0.0.2" });
 const notFound = async () => {
@@ -51,5 +51,19 @@ describe("Verfügbarkeit von Ollama", () => {
     }) as typeof fetch;
     await probeOllama("http://host.example:1234", "m", { lookup: resolves, fetch: spy });
     expect(requested).toBe("http://host.example:1234/api/tags");
+  });
+});
+
+describe("Chat-Client", () => {
+  it("fragt /api/chat mit JSON-Format, ohne Streaming und ohne Denkmodus", async () => {
+    let sent: { url: string; body: Record<string, unknown> } | undefined;
+    const spy = (async (input: URL | RequestInfo, init?: RequestInit) => {
+      sent = { url: String(input), body: JSON.parse(String(init?.body)) };
+      return Response.json({ message: { role: "assistant", content: '{"thought":"x","guess":null}' } });
+    }) as typeof fetch;
+    const client = ollamaChatClient("http://ollama:11434", "gemma4:26b-a4b", spy);
+    expect(await client.chat([{ role: "user", content: "Hallo" }], new AbortController().signal)).toBe('{"thought":"x","guess":null}');
+    expect(sent?.url).toBe("http://ollama:11434/api/chat");
+    expect(sent?.body).toMatchObject({ model: "gemma4:26b-a4b", format: "json", stream: false, think: false });
   });
 });

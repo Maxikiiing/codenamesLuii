@@ -6,7 +6,7 @@ import { lookup as dnsLookup } from "node:dns/promises";
 import type { AiStatus } from "../shared/types.js";
 
 export const DEFAULT_OLLAMA_URL = "http://ollama:11434";
-export const DEFAULT_OLLAMA_MODEL = "qwen2.5:14b";
+export const DEFAULT_OLLAMA_MODEL = "gemma4:26b-a4b";
 const PROBE_TIMEOUT_MS = 3000;
 
 export const REASON_UNREACHABLE = "Ollama nicht erreichbar";
@@ -75,7 +75,7 @@ export function ollamaChatClient(url: string, model: string, doFetch: typeof fet
       const res = await doFetch(new URL("/api/chat", url), {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ model, messages, format: "json", stream: false, options: { temperature: 0.7 } }),
+        body: JSON.stringify({ model, messages, format: "json", stream: false, think: false, options: { temperature: 0.7 } }),
         signal,
       });
       if (!res.ok) throw new Error(`Ollama antwortet mit HTTP ${res.status}`);
