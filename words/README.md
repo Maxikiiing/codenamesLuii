@@ -1,8 +1,8 @@
 # Wortlisten
 
-Jede `.txt`-Datei in diesem Ordner ist eine Wortliste: ein Wort pro Zeile, UTF-8. Der Dateiname ohne `.txt` ist der Name, der in der Lobby angezeigt wird. Der Ordner wird in den Container gemountet, neue Listen sind also ohne Neubau verfügbar.
+Jede `.txt`-Datei in diesem Ordner ist eine Wortliste: ein Wort pro Zeile, UTF-8. Der Dateiname ohne `.txt` ist der Name, der in der Lobby angezeigt wird (z. B. `de-wg.txt` → „de-wg“). Ausgenommen sind Dateien, deren Name mit `license` beginnt (egal in welcher Schreibweise), und versteckte Dateien mit `.` am Anfang. Der Ordner wird in den Container gemountet, neue oder geänderte Listen sind also ohne Neubau und ohne Neustart verfügbar.
 
-Beim Laden bereinigt der Server jede Liste: Leerzeilen und Zeilen mit `#` am Anfang werden ignoriert, alles wird in Großbuchstaben umgewandelt, Wörter über 12 Zeichen und Duplikate fliegen raus. Eine Liste braucht mindestens 25 Wörter. Mit `npm run words:clean` lassen sich die Dateien selbst auch bereinigen und sortieren.
+Beim Laden bereinigt der Server jede Liste: Leerzeilen und Zeilen mit `#` am Anfang werden ignoriert, Wörter über 12 Zeichen und Duplikate fliegen raus, und alles wird in Großbuchstaben umgewandelt (ß bleibt als ẞ erhalten). Eine Liste braucht mindestens 25 Wörter, sonst erscheint sie nicht in der Lobby. Mit `npm run words:clean` lassen sich die Dateien selbst bereinigen und sortieren, `#`-Kommentare bleiben dabei als Kopfzeilen erhalten.
 
 | Datei | Inhalt | Quelle |
 |---|---|---|

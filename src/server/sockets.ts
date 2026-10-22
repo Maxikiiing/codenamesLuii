@@ -13,7 +13,7 @@ import {
 } from "../shared/types.js";
 import * as game from "./game.js";
 import { RoomManager, type RoomEntry } from "./rooms.js";
-import { drawWords, listWordLists, loadWordList } from "./words.js";
+import { drawWords, loadWordList, wordListInfos } from "./words.js";
 
 export const DEFAULT_WORD_LIST = "de-standard";
 
@@ -43,13 +43,9 @@ function reply<T>(cb: unknown, res: Ack<T>): void {
 }
 
 export function registerSockets(io: AppServer, manager: RoomManager, options: SocketOptions = {}): void {
-  const wordLists = async () => {
-    try {
-      return await listWordLists(options.wordsDir);
-    } catch {
-      return [];
-    }
-  };
+  /** Namen der Listen, die genug Wörter für eine Runde haben. */
+  const wordLists = async () =>
+    (await wordListInfos(options.wordsDir)).filter((info) => info.usable).map((info) => info.name);
 
   async function broadcast(entry: RoomEntry): Promise<void> {
     const lists = await wordLists();

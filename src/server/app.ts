@@ -6,12 +6,12 @@ import { Server } from "socket.io";
 import type { ClientToServerEvents, ServerToClientEvents } from "../shared/types.js";
 import { RoomManager } from "./rooms.js";
 import { registerSockets, type SocketOptions } from "./sockets.js";
-import { listWordLists, loadWordList } from "./words.js";
+import { wordListInfos } from "./words.js";
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-// dist/server -> dist/public (Client-Bundle) und public/ (statische Dateien)
-const bundleDir = path.resolve(here, "../public");
-const staticDir = path.resolve(here, "../../public");
+// src/server (Dev) und dist/server (Build) liegen beide zwei Ebenen unter dem Projektordner.
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const bundleDir = path.join(projectRoot, "dist/public"); // Client-Bundle von esbuild
+const staticDir = path.join(projectRoot, "public");
 
 export interface App {
   httpServer: HttpServer;
@@ -28,16 +28,7 @@ export function createApp(options: SocketOptions = {}, manager = new RoomManager
   });
 
   app.get("/api/wordlists", async (_req, res) => {
-    try {
-      const names = await listWordLists(options.wordsDir);
-      const lists = await Promise.all(
-        names.map(async (name) => ({ name, count: (await loadWordList(name, options.wordsDir)).length })),
-      );
-      res.json(lists);
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: "Wortlisten konnten nicht gelesen werden." });
-    }
+    res.json(await wordListInfos(options.wordsDir));
   });
 
   app.use(express.static(bundleDir));
