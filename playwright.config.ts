@@ -7,7 +7,7 @@ export default defineConfig({
   timeout: 60_000,
   fullyParallel: false,
   workers: 1,
-  reporter: process.env.CI ? "list" : [["list"], ["html", { open: "never" }]],
+  reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,
     trace: "retain-on-failure",
@@ -15,7 +15,8 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: `npm run build && node dist/server/index.js`,
+    // Gebaut wird vorher von `npm run test:e2e` bzw. im CI-Job.
+    command: "node dist/server/index.js",
     url: `http://127.0.0.1:${PORT}/api/health`,
     env: { PORT: String(PORT) },
     reuseExistingServer: false,

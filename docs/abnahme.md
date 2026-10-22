@@ -10,11 +10,11 @@ Zuordnung der Akzeptanzkriterien aus [`specs/codenames-spec.md`](specs/codenames
 |---|---|---|---|
 | 1 | `docker compose up -d --build` auf macOS (Apple Silicon) und Windows | CI baut das Image für amd64 und arm64 | Auf Max' Mac und Windows-PC starten, Screen über LAN-IP öffnen |
 | 2 | LF-Zeilenenden unter Windows, Container baut | `.gitattributes` mit `* text=auto eol=lf` | Frischer Clone unter Windows, dann `docker compose up -d --build` |
-| 3 | Raumcode und QR-Code mit LAN-Adresse | E2E (QR-Endpunkt), `sockets.test.ts` (Join-URL, localhost-Warnung) | QR-Code mit echtem Handy scannen |
+| 3 | Raumcode und QR-Code mit LAN-Adresse | E2E (Raumcode, QR-Endpunkt liefert SVG); `sockets.test.ts` prüft, dass die Join-URL die LAN-Adresse enthält und bei localhost gewarnt wird | QR-Code mit echtem Handy scannen |
 | 4 | Zwei Handys treten bei, drittes wird abgelehnt | E2E, `sockets.test.ts` | |
 | 5 | Teamname/-farbe live, keine gleichen Farben | E2E, `game.test.ts`, `sockets.test.ts` | |
 | 6 | „Spiel starten“ erst mit beiden Vorgebern | E2E, `sockets.test.ts` | |
-| 7 | Gleiche Karte auf beiden Playern, Screen ohne geheime Typen | E2E (alle Socket-Nachrichten an den Screen geprüft), `sockets.test.ts` | Optional in den DevTools → Netzwerk → WS nachsehen |
+| 7 | Gleiche Karte auf beiden Playern, Screen ohne geheime Typen | E2E (alle Events und Acks an den Screen geprüft), `sockets.test.ts` | Optional in den DevTools → Netzwerk → WS nachsehen |
 | 8 | Nur das aktive Team kann handeln | E2E, `game.test.ts`, `sockets.test.ts` | |
 | 9 | Aufdecken erreicht alle Geräte in < 1 s | E2E, `sockets.test.ts` | Im echten WLAN gegenprüfen |
 | 10 | Zugende, Sieg durch alle Karten, Niederlage durch Attentäter | E2E, `game.test.ts` | |

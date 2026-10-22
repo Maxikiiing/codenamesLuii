@@ -67,7 +67,7 @@ Wortlisten liegen in [`words/`](words/README.md) und werden in den Container gem
 
 ## Entwicklung
 
-Voraussetzung ist Node.js 20 oder neuer.
+Voraussetzung ist Node.js 20.19 oder neuer (bzw. 22.12 oder neuer bei Node 22).
 
 ```sh
 npm install

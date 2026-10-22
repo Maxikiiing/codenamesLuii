@@ -1,9 +1,22 @@
 // Ende-zu-Ende-Abnahme im Browser: ein Screen und zwei Handys, wie im echten Spiel.
 // Deckt die Akzeptanzkriterien ab, die sich ohne zweites Betriebssystem prüfen lassen.
 
-import { expect, test, devices, type Browser, type Page } from "@playwright/test";
+import { expect, test, devices, type Browser, type BrowserContext, type Page } from "@playwright/test";
 
 const phone = devices["iPhone 13"];
+
+// Alle Contexts eines Tests, damit ihre Sockets nicht in den nächsten Test hineinlaufen.
+const contexts: BrowserContext[] = [];
+
+async function newPage(browser: Browser, options: Parameters<Browser["newContext"]>[0]): Promise<Page> {
+  const ctx = await browser.newContext(options);
+  contexts.push(ctx);
+  return ctx.newPage();
+}
+
+test.afterEach(async () => {
+  await Promise.all(contexts.splice(0).map((ctx) => ctx.close()));
+});
 
 interface Setup {
   screen: Page;
@@ -13,8 +26,7 @@ interface Setup {
 
 /** Öffnet den Screen, legt einen Raum an und schneidet alle Socket-Nachrichten an den Screen mit. */
 async function openScreen(browser: Browser): Promise<Setup> {
-  const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 } });
-  const screen = await ctx.newPage();
+  const screen = await newPage(browser, { viewport: { width: 1600, height: 900 } });
   const frames: string[] = [];
   screen.on("websocket", (ws) => ws.on("framereceived", (f) => frames.push(String(f.payload))));
   screen.on("response", async (r) => {
@@ -31,8 +43,7 @@ async function openScreen(browser: Browser): Promise<Setup> {
 }
 
 async function joinPhone(browser: Browser, code: string, teamIndex: 0 | 1): Promise<Page> {
-  const ctx = await browser.newContext({ ...phone });
-  const page = await ctx.newPage();
+  const page = await newPage(browser, { ...phone });
   await page.goto(`/join/${code}`);
   await page.locator(".team-choice").nth(teamIndex).click();
   await expect(page.locator(".player-lobby, .player-game")).toBeVisible();
@@ -41,14 +52,24 @@ async function joinPhone(browser: Browser, code: string, teamIndex: 0 | 1): Prom
 
 const confirm = (page: Page, label: string) => page.locator("dialog").getByRole("button", { name: label, exact: true }).click();
 
-/** Liefert die States aus den mitgeschnittenen Frames. */
-function states(frames: string[]): { cards?: { type?: string; revealed: boolean }[]; key?: unknown }[] {
+/** Payloads aller socket.io-Nachrichten (Events „42…“ und Acks „43<id>…“) aus den Frames. */
+function payloads(frames: string[]): unknown[] {
   return frames.flatMap((f) => {
-    const m = /^42(\[.*\])$/s.exec(f);
-    if (!m) return [];
-    const [event, payload] = JSON.parse(m[1]);
-    return event === "state" ? [payload] : [];
+    const m = /^4[23]\d*(\[.*\])$/s.exec(f);
+    return m ? [JSON.parse(m[1])] : [];
   });
+}
+
+/** Sucht rekursiv nach geheimen Daten: einer Karte `key` oder Kartentypen verdeckter Karten. */
+function findSecrets(value: unknown, path = "$"): string[] {
+  if (Array.isArray(value)) return value.flatMap((v, i) => findSecrets(v, `${path}[${i}]`));
+  if (!value || typeof value !== "object") return [];
+  const obj = value as Record<string, unknown>;
+  const found: string[] = [];
+  if ("key" in obj) found.push(`${path}.key`);
+  if ("revealed" in obj && obj.revealed === false && "type" in obj) found.push(`${path}.type`);
+  for (const [k, v] of Object.entries(obj)) found.push(...findSecrets(v, `${path}.${k}`));
+  return found;
 }
 
 test("komplette Runde mit Screen und zwei Handys", async ({ browser }) => {
@@ -66,7 +87,7 @@ test("komplette Runde mit Screen und zwei Handys", async ({ browser }) => {
   const a = await joinPhone(browser, code, 0);
   await expect(start).toBeDisabled();
   const b = await joinPhone(browser, code, 1);
-  const third = await (await browser.newContext({ ...phone })).newPage();
+  const third = await newPage(browser, { ...phone });
   await third.goto(`/join/${code}`);
   await expect(third.locator(".team-choice").first()).toBeDisabled();
   await expect(third.locator(".team-choice").nth(1)).toBeDisabled();
@@ -85,6 +106,7 @@ test("komplette Runde mit Screen und zwei Handys", async ({ browser }) => {
   await start.click();
   await expect(screen.locator(".screen-grid .card")).toHaveCount(25);
   await expect(a.locator(".player-grid .card")).toHaveCount(25);
+  await expect(b.locator(".player-grid .card")).toHaveCount(25);
 
   // AK 7: beide Player sehen dieselbe Karte
   const keyOf = (p: Page) => p.locator(".player-grid .card").evaluateAll((cs) => cs.map((c) => c.className));
@@ -98,14 +120,13 @@ test("komplette Runde mit Screen und zwei Handys", async ({ browser }) => {
   await expect(passive.getByRole("button", { name: "Zug beenden" })).toBeDisabled();
 
   // AK 9: eigene Karte aufdecken, Screen aktualisiert sich in unter 1 s
+  // (die genaue Messung über die Socket-Verbindung steht in sockets.test.ts)
   const own = active.locator(`.player-grid .card.${activeType}`).first();
   const word = (await own.innerText()).trim();
   await own.click();
   await expect(active.locator("dialog h2")).toHaveText(`„${word}“ aufdecken?`);
-  const t0 = Date.now();
   await confirm(active, "Aufdecken");
   await expect(screen.locator(".screen-grid .card.revealed", { hasText: word })).toBeVisible({ timeout: 1000 });
-  expect(Date.now() - t0).toBeLessThan(1000);
   await expect(active.locator(".player-status.my-turn")).toBeVisible(); // eigene Farbe: weiter raten
 
   // AK 11: Neuladen von Handy und Screen behält den Stand
@@ -159,13 +180,10 @@ test("komplette Runde mit Screen und zwei Handys", async ({ browser }) => {
   await expect(screen.locator(".team-name-input").first()).toHaveValue("Füchse");
   await expect(screen.getByRole("button", { name: "Spiel starten" })).toBeEnabled();
 
-  // AK 7: Screen hat zu keinem Zeitpunkt geheime Typen erhalten
-  const screenStates = states(frames);
-  expect(screenStates.length).toBeGreaterThan(5);
-  for (const s of screenStates) {
-    expect(s.key).toBeUndefined();
-    for (const card of s.cards ?? []) if (!card.revealed) expect(card.type).toBeUndefined();
-  }
+  // AK 7: keine Nachricht an den Screen (Events und Acks) enthielt geheime Daten
+  const messages = payloads(frames);
+  expect(messages.filter((m) => Array.isArray(m) && m[0] === "state").length).toBeGreaterThan(5);
+  expect(findSecrets(messages)).toEqual([]);
 });
 
 test("Sieg, wenn alle Karten eines Teams aufgedeckt sind", async ({ browser }) => {
