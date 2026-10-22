@@ -29,7 +29,7 @@ services:
     depends_on:
       - ollama
     environment:
-      - MODEL=${OLLAMA_MODEL:-qwen2.5:14b}
+      - MODEL=${OLLAMA_MODEL:-gemma4:26b-a4b}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |

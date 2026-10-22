@@ -67,7 +67,7 @@ Die Handys müssen Port **8080** auf dem Host erreichen.
 
 ## KI-Modus
 
-Für Runden mit nur zwei Leuten: Jedes Team bekommt einen KI-Rater. Der Vorgeber tippt Hinweis und Zahl ins Handy, die KI denkt laut auf dem Screen nach und deckt Karten auf, ohne die geheime Karte zu kennen. Das Sprachmodell (Standard `qwen2.5:14b`) läuft lokal über [Ollama](https://ollama.com), es geht nichts ins Internet außer dem einmaligen Download.
+Für Runden mit nur zwei Leuten: Jedes Team bekommt einen KI-Rater. Der Vorgeber tippt Hinweis und Zahl ins Handy, die KI denkt laut auf dem Screen nach und deckt Karten auf, ohne die geheime Karte zu kennen. Das Sprachmodell (Standard `gemma4:26b-a4b`) läuft lokal über [Ollama](https://ollama.com), es geht nichts ins Internet außer dem einmaligen Download.
 
 **Einmalig auf dem Host:** Ollama installieren.
 - Windows: Installer von ollama.com/download. Ollama startet danach automatisch mit Windows und nutzt aktuelle AMD-Radeon- und NVIDIA-Karten.
@@ -77,9 +77,9 @@ Für Runden mit nur zwei Leuten: Jedes Team bekommt einen KI-Rater. Der Vorgeber
 ```sh
 docker compose --profile ki up -d --build
 ```
-Das startet zusätzlich eine Weiterleitung `ollama` zum Ollama auf dem Host und lädt beim ersten Mal das Modell (ca. 9 GB, je nach Leitung 10 bis 45 Minuten, Fortschritt mit `docker compose logs -f ollama-pull`). Bis dahin ist „KI-Rater“ in der Lobby ausgegraut mit „Modell wird geladen …“ und wird von selbst wählbar. Ohne `--profile ki` gibt es keine Moduswahl.
+Das startet zusätzlich eine Weiterleitung `ollama` zum Ollama auf dem Host und lädt beim ersten Mal das Modell (ca. 15–17 GB, je nach Leitung 20 bis 90 Minuten, Fortschritt mit `docker compose logs -f ollama-pull`). Bis dahin ist „KI-Rater“ in der Lobby ausgegraut mit „Modell wird geladen …“ und wird von selbst wählbar. Ohne `--profile ki` gibt es keine Moduswahl.
 
-Bedarf: ca. 12 GB freier Arbeitsspeicher. Flüssig läuft das Modell, wenn es komplett in den Grafikspeicher passt (ca. 10 GB VRAM), sonst rechnet Ollama teilweise auf der CPU und die KI braucht deutlich länger. Ist es zu langsam (Meldung „zu lange überlegt“), in `.env` `OLLAMA_MODEL=qwen2.5:7b` setzen (ca. 4,7 GB, 8 GB RAM) und neu starten. Ein KI-Schritt darf höchstens 45 s dauern, danach gibt die KI den Zug ab. „Rückgängig“ ist im KI-Modus gesperrt.
+Bedarf: ca. 18 GB freier Arbeitsspeicher. Bei weniger als 16 GB Grafikspeicher teilt Ollama das Modell zwischen GPU und CPU auf, das geht dank der Bauart (nur ca. 4 Mrd. aktive Parameter) noch ordentlich, ist aber langsamer. Ist es zu langsam (Meldung „zu lange überlegt“), in `.env` `OLLAMA_MODEL=qwen2.5:7b` setzen (ca. 4,7 GB, 8 GB RAM) und neu starten. Ein KI-Schritt darf höchstens 45 s dauern, danach gibt die KI den Zug ab. „Rückgängig“ ist im KI-Modus gesperrt.
 
 | Problem | Lösung |
 |---|---|
