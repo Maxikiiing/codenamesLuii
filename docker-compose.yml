@@ -1,0 +1,11 @@
+services:
+  codenames-luii:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./words:/app/words:ro
+    environment:
+      - PORT=8080
+      - PUBLIC_URL=${PUBLIC_URL:-}
+    restart: unless-stopped
