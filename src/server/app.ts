@@ -57,6 +57,7 @@ export function createApp(options: SocketOptions = {}, manager = new RoomManager
 
   const httpServer = createServer(app);
   const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer);
-  registerSockets(io, manager, options);
+  const stopSockets = registerSockets(io, manager, options);
+  httpServer.on("close", stopSockets);
   return { httpServer, io, manager };
 }

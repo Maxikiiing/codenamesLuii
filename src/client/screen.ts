@@ -2,7 +2,7 @@
 
 import { otherTeam, TEAM_IDS, type PublicState, type TeamId } from "../shared/types.js";
 import { cardColors, teamColor } from "./colors.js";
-import { teamEditor } from "./lobby.js";
+import { modeSelector, teamEditor } from "./lobby.js";
 import { request, socket } from "./net.js";
 import { closeDialog, confirmDialog, errorPage, gearButton, h, mount, run, teamLabel } from "./ui.js";
 
@@ -95,6 +95,7 @@ function lobbyView(state: PublicState): HTMLElement {
         { class: "lobby-setup" },
         h("div", { class: "teams" }, teamEditor(state, "a", true), teamEditor(state, "b", true)),
         h("label", { class: "wordlist" }, "Wortliste ", select),
+        modeSelector(state),
         h(
           "button",
           {
@@ -136,7 +137,9 @@ function gameView(state: PublicState, previous: PublicState | undefined): HTMLEl
     }),
   );
 
-  const nodes: HTMLElement[] = [header, grid];
+  const nodes: HTMLElement[] = [header];
+  if (state.mode === "ai" && state.phase !== "finished") nodes.push(clueBar(state));
+  nodes.push(grid);
 
   if (state.phase === "finished" && state.winner) {
     const loser = otherTeam(state.winner);
@@ -183,6 +186,21 @@ function gameView(state: PublicState, previous: PublicState | undefined): HTMLEl
   }
 
   return h("div", { class: `screen-game phase-${state.phase}` }, ...nodes);
+}
+
+/** Hinweis des aktiven Teams im KI-Modus. */
+function clueBar(state: PublicState): HTMLElement {
+  const clue = state.currentClue;
+  if (!clue) {
+    return h("div", { class: "clue-bar waiting" }, "Warte auf den Hinweis von ", teamLabel(state, state.currentTeam));
+  }
+  return h(
+    "div",
+    { class: "clue-bar" },
+    h("span", { class: "clue-word" }, clue.word),
+    h("span", { class: "clue-number" }, String(clue.number)),
+    h("span", { class: "clue-guesses" }, `Versuche: ${clue.guesses.length} / ${clue.number + 1}`),
+  );
 }
 
 function scoreBox(state: PublicState, team: TeamId): HTMLElement {

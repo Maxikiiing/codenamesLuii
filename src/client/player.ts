@@ -1,8 +1,8 @@
 // Player: Handy eines Vorgebers. Zeigt die geheime Karte und erlaubt Aufdecken und Zugende.
 
-import { otherTeam, TEAM_IDS, type PlayerState, type PublicState, type TeamId } from "../shared/types.js";
+import { MAX_CLUE_LENGTH, MAX_CLUE_NUMBER, MIN_CLUE_NUMBER, otherTeam, TEAM_IDS, type PlayerState, type PublicState, type TeamId } from "../shared/types.js";
 import { cardColors, teamColor } from "./colors.js";
-import { teamEditor } from "./lobby.js";
+import { modeSelector, teamEditor } from "./lobby.js";
 import { clearToken, loadToken, request, saveToken, socket } from "./net.js";
 import { closeDialog, confirmDialog, errorPage, gearButton, h, mount, run, teamLabel, toast } from "./ui.js";
 
@@ -120,6 +120,7 @@ function lobbyView(state: PlayerState): HTMLElement {
     h("p", { class: "muted" }, `Raum ${state.code} · Du bist Vorgeber von`),
     teamEditor(state, state.team, true),
     teamEditor(state, otherTeam(state.team), false),
+    modeSelector(state),
     h(
       "p",
       { class: "hint" },
@@ -130,8 +131,74 @@ function lobbyView(state: PlayerState): HTMLElement {
   );
 }
 
+// Entwurf des Hinweises, damit ein Live-Update Wort und Zahl nicht zurücksetzt.
+let clueWord = "";
+let clueNumber = MIN_CLUE_NUMBER;
+
+/** Eingabe für Hinweis und Zahl im KI-Modus. */
+function clueForm(): HTMLElement {
+  const word = h("input", {
+    class: "clue-input",
+    type: "text",
+    maxLength: MAX_CLUE_LENGTH,
+    placeholder: "Hinweiswort",
+    autocomplete: "off",
+    "aria-label": "Hinweiswort",
+    "data-key": "clue-word",
+    value: clueWord,
+    oninput: (e: Event) => (clueWord = (e.target as HTMLInputElement).value),
+  });
+  const number = h(
+    "select",
+    {
+      class: "select clue-number-select",
+      "aria-label": "Anzahl Wörter",
+      onchange: (e: Event) => (clueNumber = Number((e.target as HTMLSelectElement).value)),
+    },
+    ...Array.from({ length: MAX_CLUE_NUMBER - MIN_CLUE_NUMBER + 1 }, (_, i) => {
+      const n = MIN_CLUE_NUMBER + i;
+      return h("option", { value: String(n), selected: n === clueNumber }, String(n));
+    }),
+  );
+  return h(
+    "form",
+    {
+      class: "clue-form",
+      onsubmit: async (e: Event) => {
+        e.preventDefault();
+        if (await run({ type: "giveClue", word: clueWord, number: clueNumber })) {
+          clueWord = "";
+          clueNumber = MIN_CLUE_NUMBER;
+        }
+      },
+    },
+    word,
+    number,
+    h("button", { class: "btn primary", type: "submit" }, "Hinweis abgeben"),
+  );
+}
+
+/** Hinweis-Bereich im KI-Modus: Eingabe, aktueller Hinweis oder Warten. */
+function cluePanel(state: PlayerState, myTurn: boolean): HTMLElement {
+  const clue = state.currentClue;
+  if (clue) {
+    return h(
+      "div",
+      { class: "clue-current" },
+      "Hinweis: ",
+      h("strong", {}, `${clue.word} ${clue.number}`),
+      ` · Versuche: ${clue.guesses.length} / ${clue.number + 1}`,
+    );
+  }
+  if (myTurn) return clueForm();
+  return h("div", { class: "clue-current" }, "Warte auf ", teamLabel(state, state.currentTeam));
+}
+
 function gameView(state: PlayerState): HTMLElement {
   const myTurn = state.phase === "playing" && state.currentTeam === state.team;
+  const aiMode = state.mode === "ai";
+  // Im KI-Modus erst nach dem Hinweis aufdecken.
+  const canReveal = myTurn && (!aiMode || Boolean(state.currentClue));
   const mine = teamColor(state.teams, state.team);
 
   let statusText: Node;
@@ -165,7 +232,7 @@ function gameView(state: PlayerState): HTMLElement {
         {
           class: `card type-${type}${card.revealed ? " revealed" : ""}`,
           style: { background: c.bg, color: c.fg },
-          disabled: !myTurn || card.revealed,
+          disabled: !canReveal || card.revealed,
           "aria-label": `${card.word}${card.revealed ? " (aufgedeckt)" : ""}`,
           onclick: async () => {
             if (await confirmDialog(`„${card.word}“ aufdecken?`, null, "Aufdecken")) {
@@ -191,7 +258,7 @@ function gameView(state: PlayerState): HTMLElement {
     "button",
     {
       class: "btn primary big end-turn",
-      disabled: !myTurn,
+      disabled: !canReveal,
       onclick: async () => {
         if (await confirmDialog("Zug beenden?", "Das andere Team ist dann am Zug.", "Zug beenden")) {
           await run({ type: "endTurn" });
@@ -201,5 +268,13 @@ function gameView(state: PlayerState): HTMLElement {
     "Zug beenden",
   );
 
-  return h("div", { class: `player-game phase-${state.phase}` }, status, grid, remaining, endTurn);
+  return h(
+    "div",
+    { class: `player-game phase-${state.phase}` },
+    status,
+    aiMode && state.phase !== "finished" && cluePanel(state, myTurn),
+    grid,
+    remaining,
+    endTurn,
+  );
 }

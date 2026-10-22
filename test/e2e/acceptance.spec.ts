@@ -87,6 +87,9 @@ test("komplette Runde mit Screen und zwei Handys", async ({ browser }) => {
   const a = await joinPhone(browser, code, 0);
   await expect(start).toBeDisabled();
   const b = await joinPhone(browser, code, 1);
+
+  // Spec 002, AK1: ohne Profil ki gibt es keine Moduswahl.
+  for (const page of [screen, a, b]) await expect(page.getByRole("radiogroup", { name: "Modus" })).toHaveCount(0);
   const third = await newPage(browser, { ...phone });
   await third.goto(`/join/${code}`);
   await expect(third.locator(".team-choice").first()).toBeDisabled();

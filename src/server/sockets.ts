@@ -7,16 +7,18 @@ import {
   TEAM_IDS,
   type Action,
   type Ack,
+  type AiStatus,
   type ClientToServerEvents,
   type ServerToClientEvents,
   type TeamId,
 } from "../shared/types.js";
 import * as game from "./game.js";
-import { RoomManager, type RoomEntry } from "./rooms.js";
+import { AI_DISABLED, RoomManager, type RoomEntry } from "./rooms.js";
 import { drawWords, loadWordList, wordListInfos } from "./words.js";
 
 export const DEFAULT_WORD_LIST = "de-standard";
 const WORD_LIST_CACHE_MS = 5000;
+const AI_RECHECK_MS = 5000;
 const VALID_HOST = /^(?:[A-Za-z0-9.-]{1,253}|\[[0-9A-Fa-f:.]{2,45}\])(?::\d{1,5})?$/;
 
 interface SocketData {
@@ -32,6 +34,10 @@ export interface SocketOptions {
   /** Feste öffentliche URL aus PUBLIC_URL, sonst wird sie aus dem Host-Header abgeleitet. */
   publicUrl?: string;
   wordsDir?: string;
+  /** Prüft, ob der KI-Modus angeboten wird und bereit ist. Ohne Probe gibt es keinen KI-Modus. */
+  aiProbe?: () => Promise<AiStatus>;
+  /** Abstand der Neuprüfung, solange der KI-Modus angeboten, aber nicht bereit ist. */
+  aiRecheckMs?: number;
 }
 
 const publicRoom = (code: string) => `${code}:public`;
@@ -44,7 +50,8 @@ function reply<T>(cb: unknown, res: Ack<T>): void {
   if (typeof cb === "function") cb(res);
 }
 
-export function registerSockets(io: AppServer, manager: RoomManager, options: SocketOptions = {}): void {
+/** Registriert die Socket-Events. Liefert eine Funktion, die die Hintergrundprüfung beendet. */
+export function registerSockets(io: AppServer, manager: RoomManager, options: SocketOptions = {}): () => void {
   // Namen der Listen, die genug Wörter für eine Runde haben. Kurz zwischengespeichert,
   // damit nicht jede Aufdeckung den Wortlisten-Ordner liest.
   let listCache: { at: number; names: Promise<string[]> } | undefined;
@@ -64,12 +71,61 @@ export function registerSockets(io: AppServer, manager: RoomManager, options: So
   async function broadcast(entry: RoomEntry): Promise<void> {
     const lists = await wordLists();
     const { code } = entry.room;
-    io.to(publicRoom(code)).emit("state", manager.publicState(entry, lists));
+    io.to(publicRoom(code)).emit("state", manager.publicState(entry, lists, aiStatus));
     for (const team of TEAM_IDS) {
       if (entry.room.players[team]) {
-        io.to(teamRoom(code, team)).emit("state", manager.playerState(entry, team, lists));
+        io.to(teamRoom(code, team)).emit("state", manager.playerState(entry, team, lists, aiStatus));
       }
     }
+  }
+
+  // Verfügbarkeit des KI-Modus. Gleichzeitige Prüfungen teilen sich eine Anfrage.
+  let aiStatus: AiStatus = AI_DISABLED;
+  let probing: Promise<AiStatus> | undefined;
+  function refreshAi(): Promise<AiStatus> {
+    const probe = options.aiProbe;
+    if (!probe) return Promise.resolve(aiStatus);
+    probing ??= (async () => {
+      try {
+        const status = await probe();
+        const changed =
+          status.enabled !== aiStatus.enabled || status.ready !== aiStatus.ready || status.reason !== aiStatus.reason;
+        aiStatus = status;
+        if (changed) {
+          // Lobbys sofort aktualisieren, damit die Option ohne Neuladen wählbar wird.
+          for (const entry of manager.entries()) {
+            if (entry.room.phase !== "lobby") continue;
+            fallBackToClassic(entry);
+            await broadcast(entry);
+          }
+        }
+      } catch (e) {
+        console.error("KI-Verfügbarkeit konnte nicht geprüft werden:", e);
+      }
+      return aiStatus;
+    })().finally(() => (probing = undefined));
+    return probing;
+  }
+
+  /** Ohne KI-Modus kann ein Raum nicht im Modus „KI-Rater“ bleiben (Lobby hätte keine Moduswahl). */
+  function fallBackToClassic(entry: RoomEntry): void {
+    if (!aiStatus.enabled && entry.room.phase === "lobby") entry.room.mode = "classic";
+  }
+
+  /** Fehler, wenn der KI-Modus gerade nicht nutzbar ist. */
+  async function requireAi(): Promise<Ack | undefined> {
+    const status = await refreshAi();
+    return status.enabled && status.ready ? undefined : err(status.reason ?? "Der KI-Modus ist nicht verfügbar.");
+  }
+
+  let recheck: NodeJS.Timeout | undefined;
+  if (options.aiProbe) {
+    void refreshAi();
+    recheck = setInterval(() => {
+      // Auch ohne auflösbaren Dienst weiter prüfen: Der Spiel-Container kann vor `ollama` starten.
+      if (!aiStatus.ready) void refreshAi();
+    }, options.aiRecheckMs ?? AI_RECHECK_MS);
+    recheck.unref();
   }
 
   function baseUrlFor(socket: AppSocket): string {
@@ -130,9 +186,23 @@ export function registerSockets(io: AppServer, manager: RoomManager, options: So
         if (!(await wordLists()).includes(action.wordList)) return err("Diese Wortliste gibt es nicht.");
         return game.setWordList(room, action.wordList);
       }
+      case "setMode": {
+        if (action.mode === "ai" && room.phase === "lobby") {
+          const unavailable = await requireAi();
+          if (unavailable) return unavailable;
+        }
+        return game.setMode(room, action.mode);
+      }
+      case "giveClue":
+        if (!player) return err("Nur Vorgeber können Hinweise geben.");
+        return game.giveClue(room, player.team, action.word, action.number);
       case "startGame": {
         if (room.phase !== "lobby") return err("Das Spiel läuft bereits.");
         if (!manager.bothPlayersConnected(entry)) return err("Beide Vorgeber müssen verbunden sein.");
+        if (room.mode === "ai") {
+          const unavailable = await requireAi();
+          if (unavailable) return unavailable;
+        }
         let words: string[];
         try {
           words = drawWords(await loadWordList(room.wordList, options.wordsDir));
@@ -147,8 +217,12 @@ export function registerSockets(io: AppServer, manager: RoomManager, options: So
       case "endTurn":
         if (!player) return err("Nur Vorgeber können den Zug beenden.");
         return game.endTurn(room, player.team);
-      case "newRound":
-        return game.newRound(room);
+      case "newRound": {
+        const res = game.newRound(room);
+        if (room.mode === "ai") await refreshAi();
+        fallBackToClassic(entry);
+        return res;
+      }
       case "undo":
         return game.undo(room);
       case "releaseSlot": {
@@ -176,6 +250,7 @@ export function registerSockets(io: AppServer, manager: RoomManager, options: So
       socket.data = { code: entry.room.code, role: "screen" };
       await socket.join(publicRoom(entry.room.code));
       manager.connect(entry, "screen");
+      if (entry.room.phase === "lobby") void refreshAi();
       reply(cb, { ok: true });
       if (previous && previous !== entry) await broadcast(previous);
       await broadcast(entry);
@@ -184,7 +259,7 @@ export function registerSockets(io: AppServer, manager: RoomManager, options: So
     socket.on("peekRoom", async (req, cb) => {
       const entry = manager.get(req?.code);
       if (!entry) return reply(cb, err("Raum nicht gefunden."));
-      reply(cb, { ok: true, state: manager.publicState(entry, await wordLists()) });
+      reply(cb, { ok: true, state: manager.publicState(entry, await wordLists(), aiStatus) });
     });
 
     socket.on("joinPlayer", async (req, cb) => {
@@ -207,6 +282,7 @@ export function registerSockets(io: AppServer, manager: RoomManager, options: So
       socket.data = { code: room.code, role: team, token };
       await socket.join(teamRoom(room.code, team));
       manager.connect(entry, team);
+      if (room.phase === "lobby") void refreshAi();
       reply(cb, { ok: true, team, token: token! });
       if (previous && previous !== entry) await broadcast(previous);
       await broadcast(entry);
@@ -231,4 +307,6 @@ export function registerSockets(io: AppServer, manager: RoomManager, options: So
       if (entry) await broadcast(entry);
     });
   });
+
+  return () => clearInterval(recheck);
 }

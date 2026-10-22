@@ -158,7 +158,11 @@ export function gearButton(getState: () => PublicState | undefined): HTMLElement
 async function gearMenu(state: PublicState): Promise<void> {
   const choice = await dialog("Spielleitung", null, [
     { label: "Neue Runde", value: "newRound" as const, kind: "primary" },
-    { label: "Undo (letzte Aufdeckung)", value: "undo" as const, disabled: !state.canUndo },
+    {
+      label: state.mode === "ai" ? "Undo (im KI-Modus nicht verfügbar)" : "Undo (letzte Aufdeckung)",
+      value: "undo" as const,
+      disabled: !state.canUndo,
+    },
     { label: "Neue Verbindung erlauben", value: "release" as const },
     { label: "Schließen", value: undefined },
   ]);

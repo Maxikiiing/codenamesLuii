@@ -1,6 +1,13 @@
 // Team-Anpassung in der Lobby, genutzt von Screen (beide Teams) und Player (eigenes Team).
 
-import { MAX_TEAM_NAME_LENGTH, otherTeam, PALETTE, type PublicState, type TeamId } from "../shared/types.js";
+import {
+  MAX_TEAM_NAME_LENGTH,
+  otherTeam,
+  PALETTE,
+  type GameMode,
+  type PublicState,
+  type TeamId,
+} from "../shared/types.js";
 import { PALETTE_COLORS, teamColor } from "./colors.js";
 import { h, run } from "./ui.js";
 
@@ -78,4 +85,35 @@ export function teamEditor(state: PublicState, team: TeamId, editable: boolean):
   );
 
   return h("section", { class: "team-card", style: { borderColor: color.bg } }, input, swatches, status);
+}
+
+const MODE_LABELS: Record<GameMode, string> = { classic: "Klassisch", ai: "KI-Rater" };
+
+/** Moduswahl (Spec 002). Nur sichtbar, wenn der Server mit KI-Modus gestartet wurde. */
+export function modeSelector(state: PublicState): HTMLElement | false {
+  if (!state.aiEnabled) return false;
+  const options = (Object.keys(MODE_LABELS) as GameMode[]).map((mode) => {
+    const selected = state.mode === mode;
+    const unavailable = mode === "ai" && !state.aiAvailable && !selected;
+    return h(
+      "button",
+      {
+        class: `mode-option${selected ? " selected" : ""}`,
+        role: "radio",
+        "aria-checked": String(selected),
+        disabled: unavailable,
+        onclick: () => {
+          if (!selected) void run({ type: "setMode", mode });
+        },
+      },
+      MODE_LABELS[mode],
+    );
+  });
+  return h(
+    "div",
+    { class: "mode-select" },
+    h("span", { class: "mode-label" }, "Modus"),
+    h("div", { class: "mode-options", role: "radiogroup", "aria-label": "Modus" }, ...options),
+    !state.aiAvailable && state.aiUnavailableReason && h("span", { class: "mode-reason" }, state.aiUnavailableReason),
+  );
 }
