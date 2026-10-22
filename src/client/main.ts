@@ -1,9 +1,5 @@
 import { io } from "socket.io-client";
-
-interface WordListInfo {
-  name: string;
-  count: number;
-}
+import type { WordListInfo } from "../shared/types.js";
 
 const app = document.getElementById("app")!;
 const status = document.createElement("p");
@@ -11,7 +7,7 @@ status.textContent = "Verbinde …";
 app.append(status);
 
 const socket = io();
-socket.on("hello", () => {
+socket.on("connect", () => {
   status.textContent = "Verbunden mit dem Server.";
 });
 socket.on("disconnect", () => {
