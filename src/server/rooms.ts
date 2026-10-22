@@ -102,13 +102,17 @@ export class RoomManager {
     return removed;
   }
 
+  joinUrl(entry: RoomEntry): string {
+    return `${entry.baseUrl}/join/${entry.room.code}`;
+  }
+
   /** Öffentlicher State: der Typ einer Karte nur, wenn sie aufgedeckt ist. */
   publicState(entry: RoomEntry, wordLists: string[]): PublicState {
     const { room } = entry;
     const cards: PublicCard[] = room.cards.map((card) =>
       card.revealed ? { word: card.word, revealed: true, type: card.type } : { word: card.word, revealed: false },
     );
-    const joinUrl = `${entry.baseUrl}/join/${room.code}`;
+    const joinUrl = this.joinUrl(entry);
     return {
       code: room.code,
       phase: room.phase,

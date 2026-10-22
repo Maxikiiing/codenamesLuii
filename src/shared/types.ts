@@ -8,6 +8,8 @@ export type WinReason = "allFound" | "assassin";
 
 export const TEAM_IDS: readonly TeamId[] = ["a", "b"];
 
+export const otherTeam = (team: TeamId): TeamId => (team === "a" ? "b" : "a");
+
 export const PALETTE = ["red", "blue", "green", "purple", "orange", "pink", "teal", "yellow"] as const;
 export type PaletteColor = (typeof PALETTE)[number];
 

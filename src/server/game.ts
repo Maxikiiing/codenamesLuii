@@ -3,6 +3,7 @@
 
 import {
   MAX_TEAM_NAME_LENGTH,
+  otherTeam,
   PALETTE,
   TEAM_IDS,
   type CardType,
@@ -54,7 +55,7 @@ export interface Room {
 const ok: Result = { ok: true };
 const fail = (error: string): Result => ({ ok: false, error });
 
-export const otherTeam = (team: TeamId): TeamId => (team === "a" ? "b" : "a");
+export { otherTeam };
 
 export function defaultTeams(): Record<TeamId, TeamConfig> {
   return {

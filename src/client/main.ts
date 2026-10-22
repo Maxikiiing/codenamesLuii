@@ -1,30 +1,14 @@
-import { io } from "socket.io-client";
-import type { WordListInfo } from "../shared/types.js";
+import { startHome, startJoinForm } from "./home.js";
+import { startPlayer } from "./player.js";
+import { startScreen } from "./screen.js";
 
-const app = document.getElementById("app")!;
-const status = document.createElement("p");
-status.textContent = "Verbinde …";
-app.append(status);
+const root = document.getElementById("app")!;
+const path = location.pathname.replace(/\/+$/, "");
 
-const socket = io();
-socket.on("connect", () => {
-  status.textContent = "Verbunden mit dem Server.";
-});
-socket.on("disconnect", () => {
-  status.textContent = "Verbindung getrennt.";
-});
+const screenMatch = /^\/screen\/([A-Za-z]{4})$/.exec(path);
+const joinMatch = /^\/join\/([A-Za-z]{4})$/.exec(path);
 
-fetch("/api/wordlists")
-  .then((res) => res.json() as Promise<WordListInfo[]>)
-  .then((lists) => {
-    const ul = document.createElement("ul");
-    for (const list of lists) {
-      const li = document.createElement("li");
-      li.textContent = `${list.name}: ${list.count} Wörter`;
-      ul.append(li);
-    }
-    app.append(ul);
-  })
-  .catch(() => {
-    status.textContent = "Wortlisten konnten nicht geladen werden.";
-  });
+if (screenMatch) startScreen(root, screenMatch[1].toUpperCase());
+else if (joinMatch) startPlayer(root, joinMatch[1].toUpperCase());
+else if (path === "/join") startJoinForm(root);
+else startHome(root);

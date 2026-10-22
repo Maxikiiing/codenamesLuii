@@ -323,6 +323,19 @@ describe("Raum-Lebensdauer", () => {
 });
 
 describe("Join-URL", () => {
+  it("ignoriert unplausible Host-Header, der QR-Code bleibt abrufbar", async () => {
+    const c = connect(url, { transports: ["websocket"], forceNew: true, extraHeaders: { host: "x".repeat(3000) } }) as Client;
+    clients.push(c);
+    await new Promise<void>((resolve) => c.on("connect", () => resolve()));
+    const created = await emitAck<{ code: string }>(c, "createRoom");
+    if (!created.ok) throw new Error(created.error);
+    const peek = await emitAck<{ state: PublicState }>(c, "peekRoom", { code: created.code });
+    expect(peek.ok && peek.state.joinUrl).toBe(`http://localhost/join/${created.code}`);
+    const res = await fetch(`${url}/api/rooms/${created.code}/qr.svg`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("image/svg+xml");
+  });
+
   it("nutzt PUBLIC_URL, wenn gesetzt", () => {
     const manager = new RoomManager();
     const entry = manager.create("http://192.168.1.20:8080", "de-standard");
