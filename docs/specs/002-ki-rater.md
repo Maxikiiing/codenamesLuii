@@ -17,7 +17,7 @@ Codenames auch dann spielbar machen, wenn zu wenige Leute für zwei Rater-Teams 
 ### Im Umfang
 - Moduswahl „Klassisch“ / „KI-Rater“ in der Lobby.
 - Hinweis-Eingabe (Wort und Zahl) auf dem Player im KI-Modus.
-- KI-Rater pro Team auf Basis eines **lokalen Sprachmodells über Ollama** (Standardmodell `qwen2.5:14b`).
+- KI-Rater pro Team auf Basis eines **lokalen Sprachmodells über Ollama** (Standardmodell `gemma4:26b-a4b`).
 - Zuschaltbarer Ollama-Dienst in Docker Compose (Profil `ki`).
 - Lautes Denken als Text auf dem Screen.
 - Gedächtnis: Die KI kennt alle Hinweise der laufenden Runde und deren Ergebnisse.
@@ -80,11 +80,11 @@ Codenames auch dann spielbar machen, wenn zu wenige Leute für zwei Rater-Teams 
 - **Ohne KI:** `docker compose up -d --build` startet wie bisher nur das Spiel. Kein Ollama, keine Moduswahl.
 - **Mit KI:** `docker compose --profile ki up -d --build` startet zusätzlich
   - den Dienst `ollama`: eine schlanke TCP-Weiterleitung (z. B. `alpine/socat`) auf Port 11434 des Hosts (`host.docker.internal:11434`, mit `extra_hosts: ["host.docker.internal:host-gateway"]`). Ollama selbst läuft **nativ auf dem Host** (Ollama für Windows bzw. macOS), weil Docker Desktop AMD-Grafikkarten nicht an Container durchreicht,
-  - einen einmaligen Dienst, der über die Ollama-API (`POST /api/pull`) das in `OLLAMA_MODEL` konfigurierte Modell herunterlädt, falls es noch fehlt (Standard `qwen2.5:14b`, ca. 9 GB beim ersten Start).
+  - einen einmaligen Dienst, der über die Ollama-API (`POST /api/pull`) das in `OLLAMA_MODEL` konfigurierte Modell herunterlädt, falls es noch fehlt (Standard `gemma4:26b-a4b`, ca. 15–17 GB beim ersten Start).
 - Voraussetzung auf dem Host: Ollama ist einmalig installiert und läuft (unter Windows startet es automatisch mit dem System).
 - Das Spiel erkennt den KI-Modus daran, dass der Dienst `ollama` erreichbar ist (`OLLAMA_URL`, Standard `http://ollama:11434`). Der Befehl ist auf macOS und Windows identisch.
-- Umgebungsvariablen in `.env.example`: `OLLAMA_URL`, `OLLAMA_MODEL` (Standard `qwen2.5:14b`). Ein Wechsel des Modells erfordert keine Code-Änderung; als schnellere Ausweichlösung dokumentiert die README `OLLAMA_MODEL=qwen2.5:7b`.
-- README: Abschnitt „KI-Modus“ mit Ollama-Installation (Windows, macOS), dem Startbefehl, Dauer des ersten Downloads, RAM-Bedarf (ca. 12 GB frei; hat die Grafikkarte weniger als ca. 10 GB VRAM, verteilt Ollama das Modell auf GPU und CPU und wird langsamer) und Fehlersuche: Ollama läuft nicht; Firewall blockiert Port 11434 zwischen WSL2 und Host; Ollama lauscht standardmäßig nur auf `127.0.0.1`. Erreicht der Container es darüber nicht, auf dem Host die Umgebungsvariable `OLLAMA_HOST=0.0.0.0` setzen und Ollama neu starten, mit dem Hinweis, dass Ollama damit im ganzen LAN erreichbar ist.
+- Umgebungsvariablen in `.env.example`: `OLLAMA_URL`, `OLLAMA_MODEL` (Standard `gemma4:26b-a4b`). Ein Wechsel des Modells erfordert keine Code-Änderung; als schnellere Ausweichlösung dokumentiert die README `OLLAMA_MODEL=qwen2.5:7b`.
+- README: Abschnitt „KI-Modus“ mit Ollama-Installation (Windows, macOS), dem Startbefehl, Dauer des ersten Downloads, RAM-Bedarf (ca. 18 GB frei; hat die Grafikkarte weniger als ca. 16 GB VRAM, verteilt Ollama das Modell auf GPU und CPU und wird langsamer) und Fehlersuche: Ollama läuft nicht; Firewall blockiert Port 11434 zwischen WSL2 und Host; Ollama lauscht standardmäßig nur auf `127.0.0.1`. Erreicht der Container es darüber nicht, auf dem Host die Umgebungsvariable `OLLAMA_HOST=0.0.0.0` setzen und Ollama neu starten, mit dem Hinweis, dass Ollama damit im ganzen LAN erreichbar ist.
 
 ### R7 – Datenmodell
 - `Room` erhält `mode: "classic" | "ai"`, `clues: Clue[]` (Runde) und den Laufzustand der KI (`aiThinking: boolean`, aktueller Gedanke).
@@ -113,6 +113,7 @@ Codenames auch dann spielbar machen, wenn zu wenige Leute für zwei Rater-Teams 
 - [ ] **AK13:** *Gegeben* `docker compose --profile ki up -d --build` auf Max' Windows-PC, *wenn* eine komplette Runde im KI-Modus gespielt wird, *dann* rät die KI nachvollziehbar, äußert in mindestens einem Zug Unsicherheit, keine Antwort reißt das 45-s-Limit, und es ist festgehalten, ob der Container Ollama über `host.docker.internal` ohne `OLLAMA_HOST=0.0.0.0` erreicht (manuelle Abnahme, Ergebnis in `docs/abnahme.md`).
 
 ## Technische Hinweise
+- Ollama-Aufruf mit `think: false`, damit Modelle mit Denk-Modus nicht vor der Antwort ausführlich nachdenken und das Zeitlimit reißen.
 - Ollama-Aufruf über `POST /api/chat` mit `format: "json"` (oder JSON-Schema), `stream: false`. `GET /api/tags` für die Verfügbarkeitsprüfung. Kein zusätzliches npm-Paket nötig, `fetch` aus Node reicht.
 - Die KI-Logik gehört in ein eigenes Modul (z. B. `src/server/ai.ts`) mit injizierbarem Client, damit Tests ohne echtes Modell laufen (Fake-Ollama in Vitest).
 - Prompt-Bau als reine Funktion `buildPrompt(publicState, clues, team)` für AK8/AK9.
@@ -126,3 +127,4 @@ Codenames auch dann spielbar machen, wenn zu wenige Leute für zwei Rater-Teams 
 ## Änderungen
 - 2026-10-22 (nach Review von PR #6): Undo im KI-Modus gesperrt; Teilwort-Regel gelockert (ab 4 Zeichen, nur Anfang/Ende); KI-Antwort wird normalisiert verglichen; Screen darf den Modus wählen; Verfügbarkeit wird in der Lobby alle 5 s neu geprüft; `OLLAMA_HOST` in Fehlersuche und Abnahme; kein Gesamtlimit pro Zug (bewusst).
 - 2026-10-22: Standardmodell von `qwen2.5:7b` auf `qwen2.5:14b` angehoben (Wunsch von Max, bessere Assoziationen). Beide Teams nutzen dasselbe geladene Modell. Ausweichlösung bei zu langsamen Antworten: `OLLAMA_MODEL=qwen2.5:7b`.
+- 2026-10-22: Standardmodell auf `gemma4:26b-a4b` geändert (Mixture of Experts, ca. 4 Mrd. aktive Parameter, gilt als stark mehrsprachig; Wunsch von Max). Aufruf mit `think: false`. Ausweichlösung bleibt `OLLAMA_MODEL=qwen2.5:7b`.
