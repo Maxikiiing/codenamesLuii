@@ -67,7 +67,8 @@ describe("Hinweis-Validierung", () => {
     ["See-Pferd", 1, true],
     ["", 1, false],
     ["zwei Wörter", 1, false],
-    ["Tier!", 1, false],
+    ["Rock'n'Roll", 1, true],
+    ["!?", 1, false],
     ["a".repeat(31), 1, false],
     ["Tier", 0, false],
     ["Tier", 10, false],
@@ -99,6 +100,23 @@ describe("Hinweis-Validierung", () => {
     expect(game.clueConflicts("Rathausplatz", "HAUS")).toBe(false);
     // Länge vor der Normalisierung: „Öl“ hat 2 Zeichen, auch wenn „oel“ 3 hätte.
     expect(game.clueConflicts("Öl", "ÖLFASS")).toBe(false);
+  });
+
+  it("Wortteil-Regel gilt in beide Richtungen, auch wenn ß die Länge verändert", () => {
+    expect(game.clueConflicts("Paßt", "PASS")).toBe(true);
+    expect(game.clueConflicts("PASS", "Paßt")).toBe(true);
+  });
+
+  it("Bindestriche, Satzzeichen und NFD-Eingaben umgehen die Regeln nicht", () => {
+    expect(game.clueConflicts("Haus-Tür", "HAUSTÜR")).toBe(true);
+    expect(game.clueConflicts("Haus.", "HAUS")).toBe(true);
+    const room = aiGame(board);
+    const nfd = "Mu\u0308hle";
+    const res = game.giveClue(room, "a", nfd, 1);
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toMatch(/zu nah/);
+    expect(game.giveClue(room, "a", "Tu\u0308r", 1).ok).toBe(true);
+    expect(game.activeClue(room)?.word).toBe("TÜR");
   });
 
   it("aufgedeckte Feldwörter sind als Hinweis erlaubt", () => {

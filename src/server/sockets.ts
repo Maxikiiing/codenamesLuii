@@ -85,8 +85,9 @@ export function registerSockets(io: AppServer, manager: RoomManager, options: So
   function refreshAi(): Promise<AiStatus> {
     const probe = options.aiProbe;
     if (!probe) return Promise.resolve(aiStatus);
-    probing ??= probe()
-      .then(async (status) => {
+    probing ??= (async () => {
+      try {
+        const status = await probe();
         const changed =
           status.enabled !== aiStatus.enabled || status.ready !== aiStatus.ready || status.reason !== aiStatus.reason;
         aiStatus = status;
@@ -94,21 +95,35 @@ export function registerSockets(io: AppServer, manager: RoomManager, options: So
           // Lobbys sofort aktualisieren, damit die Option ohne Neuladen wählbar wird.
           for (const entry of manager.entries()) {
             if (entry.room.phase !== "lobby") continue;
-            if (!status.enabled) entry.room.mode = "classic";
+            fallBackToClassic(entry);
             await broadcast(entry);
           }
         }
-        return status;
-      })
-      .finally(() => (probing = undefined));
+      } catch (e) {
+        console.error("KI-Verfügbarkeit konnte nicht geprüft werden:", e);
+      }
+      return aiStatus;
+    })().finally(() => (probing = undefined));
     return probing;
+  }
+
+  /** Ohne KI-Modus kann ein Raum nicht im Modus „KI-Rater“ bleiben (Lobby hätte keine Moduswahl). */
+  function fallBackToClassic(entry: RoomEntry): void {
+    if (!aiStatus.enabled && entry.room.phase === "lobby") entry.room.mode = "classic";
+  }
+
+  /** Fehler, wenn der KI-Modus gerade nicht nutzbar ist. */
+  async function requireAi(): Promise<Ack | undefined> {
+    const status = await refreshAi();
+    return status.enabled && status.ready ? undefined : err(status.reason ?? "Der KI-Modus ist nicht verfügbar.");
   }
 
   let recheck: NodeJS.Timeout | undefined;
   if (options.aiProbe) {
     void refreshAi();
     recheck = setInterval(() => {
-      if (aiStatus.enabled && !aiStatus.ready) void refreshAi();
+      // Auch ohne auflösbaren Dienst weiter prüfen: Der Spiel-Container kann vor `ollama` starten.
+      if (!aiStatus.ready) void refreshAi();
     }, options.aiRecheckMs ?? AI_RECHECK_MS);
     recheck.unref();
   }
@@ -172,10 +187,9 @@ export function registerSockets(io: AppServer, manager: RoomManager, options: So
         return game.setWordList(room, action.wordList);
       }
       case "setMode": {
-        if (room.phase !== "lobby") return err("Der Modus kann nur in der Lobby gewählt werden.");
-        if (action.mode === "ai") {
-          const status = await refreshAi();
-          if (!status.enabled || !status.ready) return err(status.reason ?? "Der KI-Modus ist nicht verfügbar.");
+        if (action.mode === "ai" && room.phase === "lobby") {
+          const unavailable = await requireAi();
+          if (unavailable) return unavailable;
         }
         return game.setMode(room, action.mode);
       }
@@ -186,8 +200,8 @@ export function registerSockets(io: AppServer, manager: RoomManager, options: So
         if (room.phase !== "lobby") return err("Das Spiel läuft bereits.");
         if (!manager.bothPlayersConnected(entry)) return err("Beide Vorgeber müssen verbunden sein.");
         if (room.mode === "ai") {
-          const status = await refreshAi();
-          if (!status.enabled || !status.ready) return err(status.reason ?? "Der KI-Modus ist nicht verfügbar.");
+          const unavailable = await requireAi();
+          if (unavailable) return unavailable;
         }
         let words: string[];
         try {
@@ -203,8 +217,12 @@ export function registerSockets(io: AppServer, manager: RoomManager, options: So
       case "endTurn":
         if (!player) return err("Nur Vorgeber können den Zug beenden.");
         return game.endTurn(room, player.team);
-      case "newRound":
-        return game.newRound(room);
+      case "newRound": {
+        const res = game.newRound(room);
+        if (room.mode === "ai") await refreshAi();
+        fallBackToClassic(entry);
+        return res;
+      }
       case "undo":
         return game.undo(room);
       case "releaseSlot": {

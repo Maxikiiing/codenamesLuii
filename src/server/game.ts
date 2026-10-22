@@ -200,9 +200,14 @@ export function activeClue(room: Room): Clue | undefined {
   return last && !last.stopped && last.team === room.currentTeam ? last : undefined;
 }
 
-/** Vergleichsform: kleingeschrieben, Umlaute und ß ausgeschrieben. */
+/** Nur Buchstaben und Ziffern (NFC), damit Bindestriche oder Satzzeichen die Regeln nicht umgehen. */
+function lettersOnly(word: string): string {
+  return word.normalize("NFC").replace(/[^\p{L}\p{N}]/gu, "");
+}
+
+/** Vergleichsform: nur Buchstaben und Ziffern, kleingeschrieben, Umlaute und ß ausgeschrieben. */
 export function normalizeForCompare(word: string): string {
-  return word
+  return lettersOnly(word)
     .toLocaleLowerCase("de-DE")
     .replace(/ä/g, "ae")
     .replace(/ö/g, "oe")
@@ -210,23 +215,24 @@ export function normalizeForCompare(word: string): string {
     .replace(/ß/g, "ss");
 }
 
-/** Ein Wort aus Buchstaben oder Ziffern, Bindestriche nur zwischen Teilen. */
-const CLUE_PATTERN = /^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u;
-
 /** Kürzere Wortteile dürfen im Hinweis vorkommen (Spec 002, R2). */
 const MIN_PART_LENGTH = 4;
 
+/** Steht `part` (ab 4 Zeichen vor der Normalisierung) am Anfang oder Ende von `whole`? */
+function isEdgePart(part: string, whole: string): boolean {
+  if ([...lettersOnly(part)].length < MIN_PART_LENGTH) return false;
+  const p = normalizeForCompare(part);
+  const w = normalizeForCompare(whole);
+  return w.startsWith(p) || w.endsWith(p);
+}
+
 /**
- * Prüft, ob ein Hinweis gegen ein verdecktes Feldwort verstößt: gleich, oder das kürzere
- * Wort (ab 4 Zeichen vor der Normalisierung) steht am Anfang oder Ende des längeren.
+ * Prüft, ob ein Hinweis gegen ein verdecktes Feldwort verstößt: gleich, oder eines der
+ * beiden Wörter (ab 4 Zeichen) steht am Anfang oder Ende des anderen.
  */
 export function clueConflicts(clue: string, boardWord: string): boolean {
-  const a = normalizeForCompare(clue);
-  const b = normalizeForCompare(boardWord);
-  if (a === b) return true;
-  const [shortRaw, short, long] = [...clue].length <= [...boardWord].length ? [clue, a, b] : [boardWord, b, a];
-  if ([...shortRaw].length < MIN_PART_LENGTH) return false;
-  return long.startsWith(short) || long.endsWith(short);
+  if (normalizeForCompare(clue) === normalizeForCompare(boardWord)) return true;
+  return isEdgePart(clue, boardWord) || isEdgePart(boardWord, clue);
 }
 
 /** Validiert einen Hinweis gegen die verdeckten Wörter. Liefert das bereinigte Wort. */
@@ -236,15 +242,13 @@ export function validateClue(
   number: unknown,
 ): { ok: true; word: string; number: number } | { ok: false; error: string } {
   if (typeof word !== "string") return { ok: false, error: "Bitte ein Hinweiswort eingeben." };
-  const trimmed = word.trim();
+  const trimmed = word.normalize("NFC").trim();
   if (!trimmed) return { ok: false, error: "Bitte ein Hinweiswort eingeben." };
   if (/\s/.test(trimmed)) return { ok: false, error: "Der Hinweis muss genau ein Wort sein." };
   if ([...trimmed].length > MAX_CLUE_LENGTH) {
     return { ok: false, error: `Der Hinweis darf höchstens ${MAX_CLUE_LENGTH} Zeichen haben.` };
   }
-  if (!CLUE_PATTERN.test(trimmed)) {
-    return { ok: false, error: "Der Hinweis darf nur Buchstaben, Ziffern und Bindestriche enthalten." };
-  }
+  if (!lettersOnly(trimmed)) return { ok: false, error: "Der Hinweis braucht mindestens einen Buchstaben." };
   if (!Number.isInteger(number) || (number as number) < MIN_CLUE_NUMBER || (number as number) > MAX_CLUE_NUMBER) {
     return { ok: false, error: `Die Zahl muss zwischen ${MIN_CLUE_NUMBER} und ${MAX_CLUE_NUMBER} liegen.` };
   }

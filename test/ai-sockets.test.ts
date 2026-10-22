@@ -30,12 +30,13 @@ afterEach(async () => {
 
 /** Server mit steuerbarer Verfügbarkeitsprüfung. */
 async function server(initial?: AiStatus, aiRecheckMs = 30) {
-  const probe = { status: initial, calls: 0 };
+  const probe = { status: initial, calls: 0, fail: false };
   app = createApp({
     wordsDir: path.resolve("words"),
     aiProbe: initial
       ? async () => {
           probe.calls++;
+          if (probe.fail) throw new Error("Probe kaputt");
           return probe.status!;
         }
       : undefined,
@@ -108,6 +109,33 @@ describe("Moduswahl über Sockets", () => {
     await settle(150);
     expect(latest(screen).aiAvailable).toBe(true);
     expect(latest(a).aiAvailable).toBe(true);
+  });
+
+  it("prüft weiter, wenn der Dienst anfangs nicht auflösbar ist (Container startet vor ollama)", async () => {
+    const { probe, screen } = await server({ enabled: false, ready: false }, 30);
+    expect(latest(screen).aiEnabled).toBe(false);
+    probe.status = READY;
+    await settle(150);
+    expect(latest(screen)).toMatchObject({ aiEnabled: true, aiAvailable: true });
+  });
+
+  it("fällt der KI-Modus während des Spiels weg, landet „Neue Runde“ wieder bei Klassisch", async () => {
+    const { probe, screen } = await server(READY, 30);
+    await act(screen, { type: "setMode", mode: "ai" });
+    expect((await act(screen, { type: "startGame" })).ok).toBe(true);
+    probe.status = { enabled: false, ready: false };
+    await settle(150);
+    expect((await act(screen, { type: "newRound" })).ok).toBe(true);
+    await settle();
+    expect(latest(screen)).toMatchObject({ phase: "lobby", mode: "classic", aiEnabled: false });
+    expect((await act(screen, { type: "startGame" })).ok).toBe(true);
+  });
+
+  it("eine fehlschlagende Prüfung bringt den Server nicht zum Absturz", async () => {
+    const { probe, screen } = await server(LOADING, 20);
+    probe.fail = true;
+    await settle(100);
+    expect((await act(screen, { type: "setMode", mode: "ai" })).ok).toBe(false);
   });
 
   it("prüft nicht weiter, sobald der KI-Modus bereit ist", async () => {

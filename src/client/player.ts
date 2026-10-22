@@ -131,7 +131,8 @@ function lobbyView(state: PlayerState): HTMLElement {
   );
 }
 
-// Entwurf des Hinweises, damit ein Live-Update beim Tippen die Zahl nicht zurücksetzt.
+// Entwurf des Hinweises, damit ein Live-Update Wort und Zahl nicht zurücksetzt.
+let clueWord = "";
 let clueNumber = MIN_CLUE_NUMBER;
 
 /** Eingabe für Hinweis und Zahl im KI-Modus. */
@@ -144,6 +145,8 @@ function clueForm(): HTMLElement {
     autocomplete: "off",
     "aria-label": "Hinweiswort",
     "data-key": "clue-word",
+    value: clueWord,
+    oninput: (e: Event) => (clueWord = (e.target as HTMLInputElement).value),
   });
   const number = h(
     "select",
@@ -163,8 +166,8 @@ function clueForm(): HTMLElement {
       class: "clue-form",
       onsubmit: async (e: Event) => {
         e.preventDefault();
-        if (await run({ type: "giveClue", word: word.value, number: clueNumber })) {
-          word.value = "";
+        if (await run({ type: "giveClue", word: clueWord, number: clueNumber })) {
+          clueWord = "";
           clueNumber = MIN_CLUE_NUMBER;
         }
       },
