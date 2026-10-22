@@ -12,13 +12,14 @@ import {
   type TeamId,
   type WinReason,
 } from "../shared/types.js";
+import { shuffle, type Random } from "./random.js";
 
 export const GRID_SIZE = 25;
 export const STARTING_TEAM_CARDS = 9;
 export const OTHER_TEAM_CARDS = 8;
 export const NEUTRAL_CARDS = 7;
 
-export type Random = () => number;
+export type { Random };
 export type Result = { ok: true } | { ok: false; error: string };
 
 export interface Card {
@@ -74,14 +75,6 @@ export function createRoom(code: string, wordList: string): Room {
     history: [],
     wordList,
   };
-}
-
-function shuffle<T>(items: T[], random: Random): T[] {
-  for (let i = items.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
-    [items[i], items[j]] = [items[j], items[i]];
-  }
-  return items;
 }
 
 /** Erzeugt 25 Karten: Startteam 9, anderes Team 8, 7 neutral, 1 Attentäter, zufällig verteilt. */
@@ -240,6 +233,9 @@ export function undo(room: Room): Result {
 export function newRound(room: Room): Result {
   room.phase = "lobby";
   room.cards = [];
+  // Startteam und aktives Team werden beim nächsten Start neu ausgelost.
+  room.startingTeam = "a";
+  room.currentTeam = "a";
   room.history = [];
   room.winner = undefined;
   room.winReason = undefined;

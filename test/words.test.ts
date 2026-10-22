@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, stat, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -85,6 +85,7 @@ describe("Wortlisten-Ordner", () => {
       "license-foo.txt": "MIT",
       ".versteckt.txt": lines(30),
       "notizen.md": "x",
+      "Party.TXT": lines(30),
     });
     expect(await listWordLists(dir)).toEqual(["de_wg", "meine liste", "wörter"]);
   });
@@ -103,6 +104,16 @@ describe("Wortlisten-Ordner", () => {
     await new Promise((r) => setTimeout(r, 20));
     await writeFile(path.join(dir, "x.txt"), lines(30));
     expect(await loadWordList("x", dir)).toHaveLength(30);
+  });
+
+  it("erkennt eine ersetzte Datei mit gleicher Änderungszeit an der Größe", async () => {
+    const dir = await tempWords({ "x.txt": lines(25) });
+    const file = path.join(dir, "x.txt");
+    const { atime, mtime } = await stat(file);
+    expect(await loadWordList("x", dir)).toHaveLength(25);
+    await writeFile(file, lines(26));
+    await utimes(file, atime, mtime);
+    expect(await loadWordList("x", dir)).toHaveLength(26);
   });
 
   it("liefert für einen fehlenden Ordner eine leere Liste statt eines Fehlers", async () => {

@@ -1,22 +1,16 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import type { WordListInfo } from "../shared/types.js";
+import { PROJECT_ROOT } from "./paths.js";
+import { shuffle, type Random } from "./random.js";
+
+export type { WordListInfo };
 
 export const MAX_WORD_LENGTH = 12;
 export const WORDS_PER_ROUND = 25;
 
-// src/server und dist/server liegen beide zwei Ebenen unter dem Projektordner.
-const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-
 /** Ordner mit den Wortlisten. Im Container per Volume gemountet. */
-export const WORDS_DIR = path.resolve(projectRoot, process.env.WORDS_DIR ?? "words");
-
-export interface WordListInfo {
-  name: string;
-  count: number;
-  /** Mindestens 25 Wörter, also für eine Runde nutzbar. */
-  usable: boolean;
-}
+export const WORDS_DIR = path.resolve(PROJECT_ROOT, process.env.WORDS_DIR ?? "words");
 
 /** Erlaubt alle Dateinamen außer Pfadangaben und versteckten Dateien. */
 export function isValidListName(name: string): boolean {
@@ -50,28 +44,28 @@ export function parseWordList(text: string): string[] {
   return cleanWords(splitLines(text));
 }
 
-/** Namen aller Listen (Dateiname ohne `.txt`), alphabetisch, ohne Lizenzdateien. */
+/** Namen aller Listen (Dateiname ohne `.txt`, kleingeschrieben), alphabetisch, ohne Lizenzdateien. */
 export async function listWordLists(dir = WORDS_DIR): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
   return entries
-    .filter((e) => e.isFile() && e.name.toLowerCase().endsWith(".txt") && !isLicenseFile(e.name))
+    .filter((e) => e.isFile() && e.name.endsWith(".txt") && !isLicenseFile(e.name))
     .map((e) => e.name.slice(0, -".txt".length))
     .filter(isValidListName)
     .sort((a, b) => a.localeCompare(b, "de"));
 }
 
-// Geparste Listen, neu gelesen, sobald sich die Datei ändert.
-const cache = new Map<string, { mtimeMs: number; words: string[] }>();
+// Geparste Listen, neu gelesen, sobald sich Änderungszeit oder Größe der Datei ändern.
+const cache = new Map<string, { mtimeMs: number; size: number; words: string[] }>();
 
 /** Lädt eine Liste. Neue oder geänderte Dateien werden ohne Neustart erkannt. */
 export async function loadWordList(name: string, dir = WORDS_DIR): Promise<string[]> {
   if (!isValidListName(name)) throw new Error(`Ungültiger Listenname: ${name}`);
   const file = path.join(dir, `${name}.txt`);
-  const { mtimeMs } = await stat(file);
+  const { mtimeMs, size } = await stat(file);
   const cached = cache.get(file);
-  if (cached && cached.mtimeMs === mtimeMs) return cached.words;
+  if (cached && cached.mtimeMs === mtimeMs && cached.size === size) return cached.words;
   const words = parseWordList(await readFile(file, "utf8"));
-  cache.set(file, { mtimeMs, words });
+  cache.set(file, { mtimeMs, size, words });
   return words;
 }
 
@@ -83,6 +77,11 @@ export async function wordListInfos(dir = WORDS_DIR): Promise<WordListInfo[]> {
   } catch (err) {
     console.error(`Wortlisten-Ordner ${dir} nicht lesbar:`, err);
     return [];
+  }
+  // Gelöschte Listen aus dem Cache entfernen.
+  const files = new Set(names.map((name) => path.join(dir, `${name}.txt`)));
+  for (const file of cache.keys()) {
+    if (path.dirname(file) === dir && !files.has(file)) cache.delete(file);
   }
   const results = await Promise.allSettled(names.map((name) => loadWordList(name, dir)));
   const infos: WordListInfo[] = [];
@@ -98,14 +97,9 @@ export async function wordListInfos(dir = WORDS_DIR): Promise<WordListInfo[]> {
 }
 
 /** Zieht `count` unterschiedliche Wörter zufällig (Fisher-Yates auf einer Kopie). */
-export function drawWords(words: readonly string[], count = WORDS_PER_ROUND, random = Math.random): string[] {
+export function drawWords(words: readonly string[], count = WORDS_PER_ROUND, random: Random = Math.random): string[] {
   if (words.length < count) {
     throw new Error(`Wortliste hat nur ${words.length} Wörter, gebraucht werden ${count}.`);
   }
-  const pool = [...words];
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
-  }
-  return pool.slice(0, count);
+  return shuffle([...words], random).slice(0, count);
 }

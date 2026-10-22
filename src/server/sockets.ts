@@ -16,6 +16,7 @@ import { RoomManager, type RoomEntry } from "./rooms.js";
 import { drawWords, loadWordList, wordListInfos } from "./words.js";
 
 export const DEFAULT_WORD_LIST = "de-standard";
+const WORD_LIST_CACHE_MS = 5000;
 
 interface SocketData {
   code?: string;
@@ -43,9 +44,21 @@ function reply<T>(cb: unknown, res: Ack<T>): void {
 }
 
 export function registerSockets(io: AppServer, manager: RoomManager, options: SocketOptions = {}): void {
-  /** Namen der Listen, die genug Wörter für eine Runde haben. */
-  const wordLists = async () =>
-    (await wordListInfos(options.wordsDir)).filter((info) => info.usable).map((info) => info.name);
+  // Namen der Listen, die genug Wörter für eine Runde haben. Kurz zwischengespeichert,
+  // damit nicht jede Aufdeckung den Wortlisten-Ordner liest.
+  let listCache: { at: number; names: Promise<string[]> } | undefined;
+  const wordLists = (): Promise<string[]> => {
+    const now = Date.now();
+    if (!listCache || now - listCache.at > WORD_LIST_CACHE_MS) {
+      listCache = {
+        at: now,
+        names: wordListInfos(options.wordsDir).then((infos) =>
+          infos.filter((info) => info.usable).map((info) => info.name),
+        ),
+      };
+    }
+    return listCache.names;
+  };
 
   async function broadcast(entry: RoomEntry): Promise<void> {
     const lists = await wordLists();
@@ -60,8 +73,12 @@ export function registerSockets(io: AppServer, manager: RoomManager, options: So
 
   function baseUrlFor(socket: AppSocket): string {
     if (options.publicUrl) return options.publicUrl.replace(/\/+$/, "");
-    const host = socket.handshake.headers.host ?? "localhost";
-    return `http://${host}`;
+    const { headers } = socket.handshake;
+    const host = headers.host ?? "localhost";
+    // Hinter einem HTTPS-Reverse-Proxy das Protokoll aus dem Proxy-Header übernehmen.
+    const forwarded = String(headers["x-forwarded-proto"] ?? "").split(",")[0].trim();
+    const proto = forwarded === "https" ? "https" : "http";
+    return `${proto}://${host}`;
   }
 
   /** Löst die Bindung eines Sockets an seinen Raum, z. B. vor einem neuen Beitritt. */
@@ -153,11 +170,12 @@ export function registerSockets(io: AppServer, manager: RoomManager, options: So
     socket.on("joinScreen", async (req, cb) => {
       const entry = manager.get(req?.code);
       if (!entry) return reply(cb, err("Raum nicht gefunden."));
-      detach(socket);
+      const previous = detach(socket);
       socket.data = { code: entry.room.code, role: "screen" };
       await socket.join(publicRoom(entry.room.code));
       manager.connect(entry, "screen");
       reply(cb, { ok: true });
+      if (previous && previous !== entry) await broadcast(previous);
       await broadcast(entry);
     });
 
@@ -183,11 +201,12 @@ export function registerSockets(io: AppServer, manager: RoomManager, options: So
         team = req.team;
       }
 
-      detach(socket);
+      const previous = detach(socket);
       socket.data = { code: room.code, role: team, token };
       await socket.join(teamRoom(room.code, team));
       manager.connect(entry, team);
       reply(cb, { ok: true, team, token: token! });
+      if (previous && previous !== entry) await broadcast(previous);
       await broadcast(entry);
     });
 

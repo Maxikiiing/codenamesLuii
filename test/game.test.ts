@@ -316,6 +316,8 @@ describe("Neue Runde", () => {
     expect(room.cards).toEqual([]);
     expect(room.history).toEqual([]);
     expect(room.players).toEqual({ a: "token-a", b: "token-b" });
+    expect(room.startingTeam).toBe("a");
+    expect(room.currentTeam).toBe("a");
     expect(room.teams.a).toEqual({ name: "Füchse", color: "orange" });
   });
 

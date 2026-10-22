@@ -1,17 +1,15 @@
 import { createServer, type Server as HttpServer } from "node:http";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import express from "express";
 import { Server } from "socket.io";
 import type { ClientToServerEvents, ServerToClientEvents } from "../shared/types.js";
+import { PROJECT_ROOT } from "./paths.js";
 import { RoomManager } from "./rooms.js";
 import { registerSockets, type SocketOptions } from "./sockets.js";
 import { wordListInfos } from "./words.js";
 
-// src/server (Dev) und dist/server (Build) liegen beide zwei Ebenen unter dem Projektordner.
-const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const bundleDir = path.join(projectRoot, "dist/public"); // Client-Bundle von esbuild
-const staticDir = path.join(projectRoot, "public");
+const bundleDir = path.join(PROJECT_ROOT, "dist/public"); // Client-Bundle von esbuild
+const staticDir = path.join(PROJECT_ROOT, "public");
 
 export interface App {
   httpServer: HttpServer;

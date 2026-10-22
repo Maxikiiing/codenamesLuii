@@ -287,6 +287,18 @@ describe("Neue Verbindung erlauben", () => {
   });
 });
 
+describe("Raumwechsel", () => {
+  it("der alte Raum erfährt, dass ein Player in einen anderen Raum gewechselt ist", async () => {
+    const g = await setup();
+    const other = await client();
+    const created = await emitAck<{ code: string }>(other, "createRoom");
+    if (!created.ok) throw new Error();
+    expect((await emitAck(g.a, "joinScreen", { code: created.code })).ok).toBe(true);
+    await settle();
+    expect(latest(g.screen).connected.a).toBe(false);
+  });
+});
+
 describe("Raum-Lebensdauer", () => {
   it("löscht Räume erst 2 Stunden nachdem das letzte Gerät weg ist", () => {
     let now = 0;

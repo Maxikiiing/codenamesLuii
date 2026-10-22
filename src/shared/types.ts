@@ -13,6 +13,14 @@ export type PaletteColor = (typeof PALETTE)[number];
 
 export const MAX_TEAM_NAME_LENGTH = 20;
 
+/** Eintrag von /api/wordlists. */
+export interface WordListInfo {
+  name: string;
+  count: number;
+  /** Mindestens 25 Wörter, also für eine Runde nutzbar. */
+  usable: boolean;
+}
+
 export interface TeamConfig {
   name: string;
   color: PaletteColor;
