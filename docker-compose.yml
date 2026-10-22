@@ -29,12 +29,12 @@ services:
     depends_on:
       - ollama
     environment:
-      - MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
+      - MODEL=${OLLAMA_MODEL:-qwen2.5:14b}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
         until curl -sf http://ollama:11434/api/tags -o /tmp/tags; do echo "Warte auf Ollama ..."; sleep 5; done
         if grep -q "\"$$MODEL\"" /tmp/tags; then echo "Modell $$MODEL ist schon da."; exit 0; fi
-        echo "Lade $$MODEL herunter, beim ersten Mal ca. 4,7 GB ..."
+        echo "Lade $$MODEL herunter, beim ersten Mal mehrere GB ..."
         curl -sf http://ollama:11434/api/pull -d "{\"model\":\"$$MODEL\",\"stream\":false}" && echo "Fertig."
     restart: "no"

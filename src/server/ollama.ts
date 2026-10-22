@@ -6,7 +6,7 @@ import { lookup as dnsLookup } from "node:dns/promises";
 import type { AiStatus } from "../shared/types.js";
 
 export const DEFAULT_OLLAMA_URL = "http://ollama:11434";
-export const DEFAULT_OLLAMA_MODEL = "qwen2.5:7b";
+export const DEFAULT_OLLAMA_MODEL = "qwen2.5:14b";
 const PROBE_TIMEOUT_MS = 3000;
 
 export const REASON_UNREACHABLE = "Ollama nicht erreichbar";
