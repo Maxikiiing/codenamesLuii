@@ -1,6 +1,10 @@
 # Codenames Luii
 
-Codenames für einen gemeinsamen Raum. Ein **Screen** (Fernseher, Laptop, iPad) zeigt das Spielfeld, die beiden **Vorgeber** steuern mit ihren Handys. Alle anderen raten mündlich und brauchen kein Gerät. Die vollständige Beschreibung steht in [`docs/specs/codenames-spec.md`](docs/specs/codenames-spec.md).
+Codenames für einen gemeinsamen Raum. Ein **Screen** (Fernseher, Laptop, iPad) zeigt das Spielfeld, die beiden **Vorgeber** steuern mit ihren Handys. Alle anderen raten mündlich und brauchen kein Gerät. Die vollständige Beschreibung steht in [`docs/specs/001-codenames.md`](docs/specs/001-codenames.md). Zur Arbeitsweise siehe [`CLAUDE.md`](CLAUDE.md), [`docs/WORKFLOW.md`](docs/WORKFLOW.md) und [`docs/specs/`](docs/specs/).
+
+## Entwickeln
+
+Nach dem Klonen einmal `git config core.hooksPath .githooks` ausführen. Das aktiviert den Hook, der direkte Pushes auf `main` blockiert. Details in [`CLAUDE.md`](CLAUDE.md).
 
 ## Voraussetzungen
 

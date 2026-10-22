@@ -1,0 +1,13 @@
+#!/bin/sh
+# Blockiert direkte Pushes auf main. Änderungen laufen über Branch + Pull Request.
+# Notfall: ALLOW_MAIN_PUSH=1 git push   (PowerShell: $env:ALLOW_MAIN_PUSH=1; git push)
+[ "$ALLOW_MAIN_PUSH" = "1" ] && exit 0
+while read local_ref local_sha remote_ref remote_sha; do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    echo "" >&2
+    echo "  Direkter Push auf 'main' ist gesperrt. Bitte Branch + Pull Request verwenden." >&2
+    echo "" >&2
+    exit 1
+  fi
+done
+exit 0

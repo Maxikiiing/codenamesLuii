@@ -1,6 +1,6 @@
 # Abnahme
 
-Zuordnung der Akzeptanzkriterien aus [`specs/codenames-spec.md`](specs/codenames-spec.md) (Abschnitt 10) zu den automatischen Tests und den Prüfungen, die nur auf echter Hardware gehen.
+Zuordnung der Akzeptanzkriterien aus [`specs/001-codenames.md`](specs/001-codenames.md) (Abschnitt 10) zu den automatischen Tests und den Prüfungen, die nur auf echter Hardware gehen.
 
 - **Unit/Integration:** `npm test` (vitest, `test/*.test.ts`)
 - **E2E:** `npm run test:e2e` (Playwright, `test/e2e/acceptance.spec.ts`, ein Screen und zwei simulierte iPhones)
