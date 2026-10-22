@@ -15,6 +15,40 @@ export type PaletteColor = (typeof PALETTE)[number];
 
 export const MAX_TEAM_NAME_LENGTH = 20;
 
+/** Spielmodus: Klassisch (Spec 001) oder mit KI-Rater (Spec 002). */
+export type GameMode = "classic" | "ai";
+export const GAME_MODES: readonly GameMode[] = ["classic", "ai"];
+
+export const MAX_CLUE_LENGTH = 30;
+export const MIN_CLUE_NUMBER = 1;
+export const MAX_CLUE_NUMBER = 9;
+
+/** Warum ein Hinweis-Zug endete: freiwillig, Versuchslimit, falsche Karte, Fehler der KI. */
+export type ClueStop = "choice" | "limit" | "wrong" | "error";
+
+export interface ClueGuess {
+  word: string;
+  type: CardType;
+}
+
+/** Ein Hinweis im KI-Modus mit den dazu aufgedeckten Karten. */
+export interface Clue {
+  team: TeamId;
+  word: string;
+  number: number;
+  guesses: ClueGuess[];
+  /** Gesetzt, sobald der Zug zu diesem Hinweis beendet ist. */
+  stopped?: ClueStop;
+}
+
+/** Ob der KI-Modus angeboten wird (`enabled`) und gerade nutzbar ist (`ready`). */
+export interface AiStatus {
+  enabled: boolean;
+  ready: boolean;
+  /** Grund, falls `enabled`, aber nicht `ready`. */
+  reason?: string;
+}
+
 /** Eintrag von /api/wordlists. */
 export interface WordListInfo {
   name: string;
@@ -58,6 +92,16 @@ export interface PublicState {
   joinUrl: string;
   /** Die Join-URL zeigt auf localhost und ist von Handys aus nicht erreichbar. */
   joinUrlIsLocal: boolean;
+  mode: GameMode;
+  /** KI-Modus angeboten, d. h. der Container wurde mit Profil `ki` gestartet. */
+  aiEnabled: boolean;
+  /** KI-Modus wählbar (Ollama erreichbar, Modell geladen). */
+  aiAvailable: boolean;
+  aiUnavailableReason?: string;
+  /** Hinweis, zu dem das aktive Team gerade rät. */
+  currentClue?: Clue;
+  aiThinking: boolean;
+  aiThought?: string;
 }
 
 /** Zusätzlich für den Player: die geheime Karte und das eigene Team. */
@@ -69,6 +113,8 @@ export interface PlayerState extends PublicState {
 export type Action =
   | { type: "updateTeam"; team: TeamId; name?: string; color?: PaletteColor }
   | { type: "setWordList"; wordList: string }
+  | { type: "setMode"; mode: GameMode }
+  | { type: "giveClue"; word: string; number: number }
   | { type: "startGame" }
   | { type: "reveal"; index: number }
   | { type: "endTurn" }

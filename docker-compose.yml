@@ -8,4 +8,6 @@ services:
     environment:
       - PORT=8080
       - PUBLIC_URL=${PUBLIC_URL:-}
+      - OLLAMA_URL=${OLLAMA_URL:-}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-}
     restart: unless-stopped

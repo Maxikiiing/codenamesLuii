@@ -2,13 +2,16 @@
 // und die Trennung von öffentlichem und geheimem State.
 
 import { randomBytes, randomUUID } from "node:crypto";
-import { TEAM_IDS, type PlayerState, type PublicCard, type PublicState, type TeamId } from "../shared/types.js";
-import { createRoom, missingTeam, remainingCards, type Room } from "./game.js";
+import { TEAM_IDS, type AiStatus, type PlayerState, type PublicCard, type PublicState, type TeamId } from "../shared/types.js";
+import { activeClue, createRoom, missingTeam, remainingCards, type Room } from "./game.js";
 
 export const ROOM_TTL_MS = 2 * 60 * 60 * 1000;
 // Ohne I und O, damit Codes nicht mit 1 und 0 verwechselt werden.
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 const CODE_LENGTH = 4;
+
+/** Ohne Profil `ki`: Moduswahl wird nicht angeboten. */
+export const AI_DISABLED: AiStatus = { enabled: false, ready: false };
 
 export interface RoomEntry {
   room: Room;
@@ -59,6 +62,10 @@ export class RoomManager {
     return entry;
   }
 
+  entries(): IterableIterator<RoomEntry> {
+    return this.rooms.values();
+  }
+
   get(code: unknown): RoomEntry | undefined {
     return this.rooms.get(normalizeCode(code));
   }
@@ -107,7 +114,7 @@ export class RoomManager {
   }
 
   /** Öffentlicher State: der Typ einer Karte nur, wenn sie aufgedeckt ist. */
-  publicState(entry: RoomEntry, wordLists: string[]): PublicState {
+  publicState(entry: RoomEntry, wordLists: string[], ai: AiStatus = AI_DISABLED): PublicState {
     const { room } = entry;
     const cards: PublicCard[] = room.cards.map((card) =>
       card.revealed ? { word: card.word, revealed: true, type: card.type } : { word: card.word, revealed: false },
@@ -126,18 +133,25 @@ export class RoomManager {
       slots: { a: Boolean(room.players.a), b: Boolean(room.players.b) },
       connected: { a: this.isConnected(entry, "a"), b: this.isConnected(entry, "b") },
       waitingFor: room.phase === "paused" ? missingTeam(room) : undefined,
-      canUndo: room.history.length > 0,
+      canUndo: room.mode !== "ai" && room.history.length > 0,
       wordList: room.wordList,
       wordLists,
       joinUrl,
       joinUrlIsLocal: isLocalUrl(joinUrl),
+      mode: room.mode,
+      aiEnabled: ai.enabled,
+      aiAvailable: ai.enabled && ai.ready,
+      aiUnavailableReason: ai.enabled && !ai.ready ? ai.reason : undefined,
+      currentClue: activeClue(room),
+      aiThinking: room.aiThinking,
+      aiThought: room.aiThought,
     };
   }
 
   /** State für einen authentifizierten Player: zusätzlich die komplette geheime Karte. */
-  playerState(entry: RoomEntry, team: TeamId, wordLists: string[]): PlayerState {
+  playerState(entry: RoomEntry, team: TeamId, wordLists: string[], ai: AiStatus = AI_DISABLED): PlayerState {
     return {
-      ...this.publicState(entry, wordLists),
+      ...this.publicState(entry, wordLists, ai),
       team,
       key: entry.room.cards.map((card) => card.type),
     };
