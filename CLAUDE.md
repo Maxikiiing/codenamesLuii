@@ -4,7 +4,8 @@ Browserbasiertes Codenames für gemeinsames Spielen im selben Raum. Ein **Screen
 
 ## Rahmenbedingungen
 - Läuft als Docker-Container im lokalen Netz (Port 8080), identisch auf macOS (inkl. Apple Silicon) und Windows (WSL2).
-- Gehostet primär auf Max' Mac, entwickelt auf dem Windows-PC.
+- Gehostet auf Max' Mac oder dem Windows-PC, entwickelt auf dem Windows-PC. Für den KI-Modus (Spec 002) ist der Windows-PC der Host: 32 GB RAM, AMD-Grafikkarte, Ollama läuft dort nativ.
+- Der KI-Modus ist optional und wird nur mit `docker compose --profile ki up` zugeschaltet. Ohne Profil läuft das Spiel ohne KI und ohne Internet- oder Ollama-Abhängigkeit.
 - Keine Accounts, keine Datenbank: Räume leben im Arbeitsspeicher des Servers.
 - Oberfläche und Wortlisten auf Deutsch.
 
