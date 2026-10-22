@@ -16,9 +16,18 @@ Browserbasiertes Codenames für gemeinsames Spielen im selben Raum. Ein **Screen
 | Developer | `/developer-<name> <Spec-Nr>` (z. B. `/developer-q 002`) oder `/developer <Spec-Nr>` | `developer/` | Code, Tests, `feat/`- und `fix/`-Branches, PRs |
 | Reviewer | `/reviewer <PR-Nr>` oder `/reviewer-<name> <PR-Nr>` | `reviewer/` | Review-Kommentare, kein Code |
 
+Die Ordner `consultant/`, `developer/` und `reviewer/` liegen **nebeneinander** im Projektordner auf Max' Rechner, nicht im Repo: `consultant/` ist das Haupt-Repo, `developer/` und `reviewer/` sind Git-Worktrees davon (`git worktree add --detach "../developer" origin/main`). In Cloud-Sitzungen entfällt diese Aufteilung.
+
 Den Merge nach `main` macht ausschließlich Max.
 
 Persönlichkeits-Skills (`consultant-*`, `developer-*`, `reviewer-*`) ändern nur den Ton im Gespräch, nie die Regeln. Ablauf: [`docs/WORKFLOW.md`](docs/WORKFLOW.md), Regeln pro Rolle: [`docs/rollen/`](docs/rollen/).
+
+## Einrichtung nach dem Klonen
+Einmal pro Klon bzw. Worktree den Push-Schutz für `main` aktivieren:
+```sh
+git config core.hooksPath .githooks
+```
+Danach scheitert `git push` auf `main` mit „Direkter Push auf 'main' ist gesperrt“.
 
 ## Regeln für alle Rollen
 - Nie direkt auf `main` pushen, nie mergen, nie force-pushen.
@@ -32,7 +41,7 @@ Persönlichkeits-Skills (`consultant-*`, `developer-*`, `reviewer-*`) ändern nu
 - Branches `spec/NNN-name`, `feat/NNN-name`, `fix/NNN-name`.
 
 ## Stack und Befehle
-Node.js 20+, TypeScript (Vanilla, kein Framework), Express + Socket.IO, esbuild für den Client, Vitest für Unit-Tests, Playwright für Abnahmetests, Docker.
+Node.js `^20.19.0 || >=22.12.0`, TypeScript (Vanilla, kein Framework), Express + Socket.IO, esbuild für den Client, Vitest für Unit-Tests, Playwright für Abnahmetests, Docker.
 
 | Zweck | Befehl |
 |---|---|

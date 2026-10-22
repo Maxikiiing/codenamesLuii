@@ -1,6 +1,6 @@
 # Spec: Codenames Luii
 
-**Status:** v1.0 – freigegeben zur Umsetzung
+**Status:** Umgesetzt (v1.0, PRs #1 bis #4)
 **Projektname:** Codenames Luii (Repo: `codenames-luii`)
 
 ---
