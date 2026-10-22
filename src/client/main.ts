@@ -11,7 +11,7 @@ status.textContent = "Verbinde …";
 app.append(status);
 
 const socket = io();
-socket.on("hello", () => {
+socket.on("connect", () => {
   status.textContent = "Verbunden mit dem Server.";
 });
 socket.on("disconnect", () => {

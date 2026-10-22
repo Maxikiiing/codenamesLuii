@@ -1,45 +1,13 @@
-import { createServer } from "node:http";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import express from "express";
-import { Server } from "socket.io";
-import { listWordLists, loadWordList } from "./words.js";
+import { createApp } from "./app.js";
 
 const PORT = Number(process.env.PORT ?? 8080);
-const here = path.dirname(fileURLToPath(import.meta.url));
-// dist/server -> dist/public (Client-Bundle) und public/ (statische Dateien)
-const bundleDir = path.resolve(here, "../public");
-const staticDir = path.resolve(here, "../../public");
+const SWEEP_INTERVAL_MS = 60 * 1000;
 
-const app = express();
-app.disable("x-powered-by");
+const { httpServer, manager } = createApp({ publicUrl: process.env.PUBLIC_URL || undefined });
 
-app.get("/api/health", (_req, res) => {
-  res.json({ ok: true });
-});
-
-app.get("/api/wordlists", async (_req, res) => {
-  try {
-    const names = await listWordLists();
-    const lists = await Promise.all(
-      names.map(async (name) => ({ name, count: (await loadWordList(name)).length })),
-    );
-    res.json(lists);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Wortlisten konnten nicht gelesen werden." });
-  }
-});
-
-app.use(express.static(bundleDir));
-app.use(express.static(staticDir));
-
-const httpServer = createServer(app);
-const io = new Server(httpServer);
-
-io.on("connection", (socket) => {
-  socket.emit("hello", { server: "codenames-luii" });
-});
+setInterval(() => {
+  for (const code of manager.sweep()) console.log(`Raum ${code} nach 2 Stunden ohne Geräte gelöscht`);
+}, SWEEP_INTERVAL_MS).unref();
 
 httpServer.listen(PORT, () => {
   console.log(`Codenames Luii läuft auf Port ${PORT}`);
