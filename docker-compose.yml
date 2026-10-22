@@ -11,3 +11,30 @@ services:
       - OLLAMA_URL=${OLLAMA_URL:-}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-}
     restart: unless-stopped
+
+  # KI-Modus (Spec 002), nur mit `docker compose --profile ki up`.
+  # Ollama läuft nativ auf dem Host, dieser Dienst leitet Port 11434 dorthin weiter.
+  ollama:
+    image: alpine/socat:1.8.0.0
+    profiles: ["ki"]
+    command: TCP-LISTEN:11434,fork,reuseaddr TCP:host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  # Lädt das Modell einmalig herunter, falls es auf dem Host noch fehlt.
+  ollama-pull:
+    image: curlimages/curl:8.10.1
+    profiles: ["ki"]
+    depends_on:
+      - ollama
+    environment:
+      - MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until curl -sf http://ollama:11434/api/tags -o /tmp/tags; do echo "Warte auf Ollama ..."; sleep 5; done
+        if grep -q "\"$$MODEL\"" /tmp/tags; then echo "Modell $$MODEL ist schon da."; exit 0; fi
+        echo "Lade $$MODEL herunter, beim ersten Mal ca. 4,7 GB ..."
+        curl -sf http://ollama:11434/api/pull -d "{\"model\":\"$$MODEL\",\"stream\":false}" && echo "Fertig."
+    restart: "no"

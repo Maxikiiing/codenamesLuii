@@ -1,6 +1,6 @@
 # 002 – KI-Rater
 
-- **Status:** Freigegeben <!-- Entwurf | Freigegeben | Umgesetzt -->
+- **Status:** Umgesetzt <!-- Entwurf | Freigegeben | Umgesetzt -->
 - **Erstellt:** 2026-10-22
 - **Abhängig von:** 001 (Grundspiel)
 

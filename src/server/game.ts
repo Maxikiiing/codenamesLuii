@@ -12,7 +12,6 @@ import {
   TEAM_IDS,
   type CardType,
   type Clue,
-  type ClueStop,
   type GameMode,
   type PaletteColor,
   type Phase,
@@ -62,6 +61,8 @@ export interface Room {
   clues: Clue[];
   aiThinking: boolean;
   aiThought?: string;
+  /** Team, von dessen KI der Gedanke stammt. */
+  aiThoughtTeam?: TeamId;
 }
 
 const ok: Result = { ok: true };
@@ -191,6 +192,7 @@ function resetClues(room: Room): void {
   room.clues = [];
   room.aiThinking = false;
   room.aiThought = undefined;
+  room.aiThoughtTeam = undefined;
 }
 
 /** Hinweis, zu dem das aktive Team gerade rät, oder undefined. */
@@ -269,12 +271,8 @@ export function giveClue(room: Room, team: TeamId, word: unknown, number: unknow
   if (!valid.ok) return valid;
   room.clues.push({ team, word: valid.word, number: valid.number, guesses: [] });
   room.aiThought = undefined;
+  room.aiThoughtTeam = undefined;
   return ok;
-}
-
-function stopClue(room: Room, reason: ClueStop): void {
-  const clue = activeClue(room);
-  if (clue) clue.stopped = reason;
 }
 
 /** Prüft, ob `team` gerade am Zug handeln darf. */
@@ -289,11 +287,22 @@ function checkTurn(room: Room, team: TeamId): Result {
 export function reveal(room: Room, team: TeamId, index: number): Result {
   const turn = checkTurn(room, team);
   if (!turn.ok) return turn;
+  if (room.mode === "ai") return fail("Im KI-Modus deckt die KI auf.");
+  return revealCard(room, team, index);
+}
+
+/** Aufdeckung durch die KI des aktiven Teams zum aktuellen Hinweis. */
+export function aiReveal(room: Room, index: number): Result {
+  if (room.mode !== "ai" || room.phase !== "playing") return fail("Es läuft gerade kein KI-Zug.");
+  if (!activeClue(room)) return fail("Es gibt keinen Hinweis.");
+  return revealCard(room, room.currentTeam, index);
+}
+
+function revealCard(room: Room, team: TeamId, index: number): Result {
   if (!Number.isInteger(index) || index < 0 || index >= room.cards.length) return fail("Unbekannte Karte.");
   const card = room.cards[index];
   if (card.revealed) return fail("Diese Karte ist schon aufgedeckt.");
   const clue = activeClue(room);
-  if (room.mode === "ai" && !clue) return fail("Zuerst einen Hinweis abgeben.");
 
   room.history.push({
     index,
@@ -335,9 +344,17 @@ export function reveal(room: Room, team: TeamId, index: number): Result {
 export function endTurn(room: Room, team: TeamId): Result {
   const turn = checkTurn(room, team);
   if (!turn.ok) return turn;
-  if (room.mode === "ai" && !activeClue(room)) return fail("Zuerst einen Hinweis abgeben.");
-  stopClue(room, "choice");
+  if (room.mode === "ai") return fail("Im KI-Modus beendet die KI den Zug.");
   room.currentTeam = otherTeam(team);
+  return ok;
+}
+
+/** Die KI hört auf (`choice`) oder scheitert (`error`): Hinweis abschließen, anderes Team ist dran. */
+export function endAiTurn(room: Room, reason: "choice" | "error"): Result {
+  const clue = activeClue(room);
+  if (room.mode !== "ai" || room.phase !== "playing" || !clue) return fail("Es läuft gerade kein KI-Zug.");
+  clue.stopped = reason;
+  room.currentTeam = otherTeam(clue.team);
   return ok;
 }
 

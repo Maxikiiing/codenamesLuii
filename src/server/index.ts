@@ -1,5 +1,5 @@
 import { createApp } from "./app.js";
-import { DEFAULT_OLLAMA_MODEL, DEFAULT_OLLAMA_URL, probeOllama } from "./ollama.js";
+import { DEFAULT_OLLAMA_MODEL, DEFAULT_OLLAMA_URL, ollamaChatClient, probeOllama } from "./ollama.js";
 
 const PORT = Number(process.env.PORT ?? 8080);
 const SWEEP_INTERVAL_MS = 60 * 1000;
@@ -10,6 +10,7 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || DEFAULT_OLLAMA_MODEL;
 const { httpServer, manager } = createApp({
   publicUrl: process.env.PUBLIC_URL || undefined,
   aiProbe: () => probeOllama(OLLAMA_URL, OLLAMA_MODEL),
+  aiClient: ollamaChatClient(OLLAMA_URL, OLLAMA_MODEL),
 });
 
 setInterval(() => {

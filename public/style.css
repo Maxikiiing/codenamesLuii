@@ -375,7 +375,8 @@ input[type="text"],
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .card.flip {
+  .card.flip,
+  .ai-thought.thinking .ai-thought-text::after {
     animation: none;
   }
 }
@@ -553,6 +554,44 @@ input[type="text"],
   padding: 0.5rem 0.75rem;
   border-radius: var(--radius);
   background: var(--surface);
+}
+
+.ai-thought {
+  flex-wrap: wrap;
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.ai-thought-who {
+  flex: none;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.85em;
+  font-weight: 700;
+}
+
+.ai-thought-text {
+  font-style: italic;
+}
+
+.ai-thought.thinking .ai-thought-text::after {
+  content: " ●";
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.2;
+  }
+}
+
+.screen-game .ai-thought {
+  font-size: clamp(1rem, 2.6vh, 2rem);
 }
 
 .screen-game {

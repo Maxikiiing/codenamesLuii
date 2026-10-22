@@ -56,3 +56,32 @@ export async function probeOllama(url: string, model: string, deps: ProbeDeps = 
     return { enabled: true, ready: false, reason: REASON_UNREACHABLE };
   }
 }
+
+export interface ChatMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+/** Schnittstelle zum Sprachmodell, in Tests durch ein Fake ersetzt. */
+export interface ChatClient {
+  /** Liefert den Text der Antwort. Bricht ab, wenn `signal` auslöst. */
+  chat(messages: ChatMessage[], signal: AbortSignal): Promise<string>;
+}
+
+/** Client für `POST /api/chat` mit JSON-Format und ohne Streaming. */
+export function ollamaChatClient(url: string, model: string, doFetch: typeof fetch = fetch): ChatClient {
+  return {
+    async chat(messages, signal) {
+      const res = await doFetch(new URL("/api/chat", url), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ model, messages, format: "json", stream: false, options: { temperature: 0.7 } }),
+        signal,
+      });
+      if (!res.ok) throw new Error(`Ollama antwortet mit HTTP ${res.status}`);
+      const body = (await res.json()) as { message?: { content?: unknown } };
+      if (typeof body.message?.content !== "string") throw new Error("Ollama-Antwort ohne Inhalt");
+      return body.message.content;
+    },
+  };
+}

@@ -102,6 +102,7 @@ export interface PublicState {
   currentClue?: Clue;
   aiThinking: boolean;
   aiThought?: string;
+  aiThoughtTeam?: TeamId;
 }
 
 /** Zusätzlich für den Player: die geheime Karte und das eigene Team. */

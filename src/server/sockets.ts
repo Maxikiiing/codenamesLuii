@@ -9,10 +9,13 @@ import {
   type Ack,
   type AiStatus,
   type ClientToServerEvents,
+  type Clue,
   type ServerToClientEvents,
   type TeamId,
 } from "../shared/types.js";
+import { runAiTurn } from "./ai.js";
 import * as game from "./game.js";
+import type { ChatClient } from "./ollama.js";
 import { AI_DISABLED, RoomManager, type RoomEntry } from "./rooms.js";
 import { drawWords, loadWordList, wordListInfos } from "./words.js";
 
@@ -38,6 +41,11 @@ export interface SocketOptions {
   aiProbe?: () => Promise<AiStatus>;
   /** Abstand der Neuprüfung, solange der KI-Modus angeboten, aber nicht bereit ist. */
   aiRecheckMs?: number;
+  /** Sprachmodell für den KI-Rater. */
+  aiClient?: ChatClient;
+  /** Zeitlimit pro KI-Schritt (Standard 45 s) und Lesepause, in Tests verkürzt. */
+  aiStepTimeoutMs?: number;
+  aiPause?: (thought: string) => number;
 }
 
 const publicRoom = (code: string) => `${code}:public`;
@@ -69,6 +77,7 @@ export function registerSockets(io: AppServer, manager: RoomManager, options: So
   };
 
   async function broadcast(entry: RoomEntry): Promise<void> {
+    syncAi(entry);
     const lists = await wordLists();
     const { code } = entry.room;
     io.to(publicRoom(code)).emit("state", manager.publicState(entry, lists, aiStatus));
@@ -77,6 +86,42 @@ export function registerSockets(io: AppServer, manager: RoomManager, options: So
         io.to(teamRoom(code, team)).emit("state", manager.playerState(entry, team, lists, aiStatus));
       }
     }
+  }
+
+  // Laufende KI-Züge je Raum, gebunden an den Hinweis, zu dem geraten wird.
+  const aiRuns = new Map<RoomEntry, { controller: AbortController; clue: Clue }>();
+
+  /** Startet den KI-Zug, sobald ein Hinweis vorliegt, und bricht ihn bei Pause oder neuer Runde ab. */
+  function syncAi(entry: RoomEntry): void {
+    const { room } = entry;
+    const clue = game.activeClue(room);
+    const wanted = options.aiClient && room.mode === "ai" && room.phase === "playing" ? clue : undefined;
+    const run = aiRuns.get(entry);
+    if (run) {
+      if (run.clue === wanted) return;
+      run.controller.abort();
+      aiRuns.delete(entry);
+      // Der abgebrochene Schritt wird verworfen und nach dem Fortsetzen neu gestartet.
+      room.aiThinking = false;
+    }
+    if (!wanted || !options.aiClient) return;
+
+    const controller = new AbortController();
+    aiRuns.set(entry, { controller, clue: wanted });
+    const deps = {
+      client: options.aiClient,
+      publicState: () => manager.publicState(entry, [], aiStatus),
+      broadcast: () => broadcast(entry),
+      stepTimeoutMs: options.aiStepTimeoutMs,
+      pause: options.aiPause,
+    };
+    void runAiTurn(room, deps, controller.signal)
+      .catch((e) => console.error("KI-Zug fehlgeschlagen:", e))
+      .finally(() => {
+        if (aiRuns.get(entry)?.controller !== controller) return;
+        aiRuns.delete(entry);
+        broadcast(entry).catch((e) => console.error(e));
+      });
   }
 
   // Verfügbarkeit des KI-Modus. Gleichzeitige Prüfungen teilen sich eine Anfrage.

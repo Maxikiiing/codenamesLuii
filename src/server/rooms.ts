@@ -145,6 +145,7 @@ export class RoomManager {
       currentClue: activeClue(room),
       aiThinking: room.aiThinking,
       aiThought: room.aiThought,
+      aiThoughtTeam: room.aiThoughtTeam,
     };
   }
 

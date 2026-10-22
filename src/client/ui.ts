@@ -219,3 +219,17 @@ export function errorPage(root: HTMLElement, title: string, text: string): void 
     ),
   );
 }
+
+/** Lautes Denken der KI (Spec 002), auf Screen und Player gleich. */
+export function aiThoughtBox(state: PublicState): HTMLElement | false {
+  if (state.mode !== "ai" || state.phase === "lobby") return false;
+  if (!state.aiThought && !state.aiThinking) return false;
+  const team = state.aiThoughtTeam ?? state.currentTeam;
+  const c = teamColor(state.teams, team);
+  return h(
+    "div",
+    { class: `ai-thought${state.aiThinking ? " thinking" : ""}`, style: { borderColor: c.bg }, "aria-live": "polite" },
+    h("span", { class: "ai-thought-who", style: { background: c.bg, color: c.fg } }, `KI ${state.teams[team].name}`),
+    h("span", { class: "ai-thought-text" }, state.aiThought ?? "denkt nach …"),
+  );
+}
