@@ -1,6 +1,6 @@
 // Team-Anpassung in der Lobby, genutzt von Screen (beide Teams) und Player (eigenes Team).
 
-import { MAX_TEAM_NAME_LENGTH, PALETTE, type PublicState, type TeamId } from "../shared/types.js";
+import { MAX_TEAM_NAME_LENGTH, otherTeam, PALETTE, type PublicState, type TeamId } from "../shared/types.js";
 import { PALETTE_COLORS, teamColor } from "./colors.js";
 import { h, run } from "./ui.js";
 
@@ -15,7 +15,7 @@ function sendName(team: TeamId, input: HTMLInputElement, state: PublicState): vo
 }
 
 export function teamEditor(state: PublicState, team: TeamId, editable: boolean): HTMLElement {
-  const other: TeamId = team === "a" ? "b" : "a";
+  const other = otherTeam(team);
   const color = teamColor(state.teams, team);
   const connected = state.connected[team];
 
@@ -47,7 +47,11 @@ export function teamEditor(state: PublicState, team: TeamId, editable: boolean):
     window.clearTimeout(nameTimers[team]);
     nameTimers[team] = window.setTimeout(() => sendName(team, input, state), NAME_DEBOUNCE_MS);
   });
-  input.addEventListener("change", () => sendName(team, input, state));
+  input.addEventListener("change", () => {
+    // Leeren Namen nicht stehen lassen, der Server behält den alten.
+    if (!input.value.trim()) input.value = state.teams[team].name;
+    sendName(team, input, state);
+  });
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") input.blur();
   });

@@ -205,12 +205,16 @@ input[type="text"],
 
 .dialog {
   width: min(28rem, calc(100% - 2rem));
-  padding: 1.5rem;
+  padding: 0;
   border: none;
   border-radius: 16px;
   background: var(--surface);
   color: var(--text);
   box-shadow: 0 20px 60px rgb(0 0 0 / 0.35);
+}
+
+.dialog-content {
+  padding: 1.5rem;
 }
 
 .dialog::backdrop {

@@ -101,10 +101,15 @@ export function dialog<T>(title: string, body: Child, buttons: DialogButton<T>[]
         b.label,
       ),
     );
+    // Der Inhalt füllt den ganzen Dialog, damit nur Klicks auf den Hintergrund ihn schließen.
     dlg.append(
-      h("h2", {}, title),
-      body ? h("div", { class: "dialog-body" }, body) : "",
-      h("div", { class: "dialog-buttons" }, ...buttonEls),
+      h(
+        "div",
+        { class: "dialog-content" },
+        h("h2", {}, title),
+        body ? h("div", { class: "dialog-body" }, body) : "",
+        h("div", { class: "dialog-buttons" }, ...buttonEls),
+      ),
     );
     dlg.addEventListener("close", () => {
       dlg.remove();

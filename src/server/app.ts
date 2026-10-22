@@ -37,8 +37,14 @@ export function createApp(options: SocketOptions = {}, manager = new RoomManager
       res.status(404).end();
       return;
     }
-    const svg = await QRCode.toString(manager.joinUrl(entry), { type: "svg", margin: 1, errorCorrectionLevel: "M" });
-    res.type("image/svg+xml").set("Cache-Control", "no-store").send(svg);
+    try {
+      const svg = await QRCode.toString(manager.joinUrl(entry), { type: "svg", margin: 1, errorCorrectionLevel: "M" });
+      // Die Join-URL eines Raums ändert sich nie.
+      res.type("image/svg+xml").set("Cache-Control", "private, max-age=86400").send(svg);
+    } catch (err) {
+      console.error(err);
+      res.status(500).end();
+    }
   });
 
   app.use(express.static(bundleDir));

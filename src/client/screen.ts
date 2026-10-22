@@ -1,6 +1,6 @@
 // Screen: öffentliche Ansicht für Fernseher oder Laptop. Erhält nie die geheime Karte.
 
-import { TEAM_IDS, type PublicState, type TeamId } from "../shared/types.js";
+import { otherTeam, TEAM_IDS, type PublicState, type TeamId } from "../shared/types.js";
 import { cardColors, teamColor } from "./colors.js";
 import { teamEditor } from "./lobby.js";
 import { request, socket } from "./net.js";
@@ -37,12 +37,16 @@ export function startScreen(root: HTMLElement, code: string): void {
   }
 }
 
-function qr(state: PublicState, className = "qr"): HTMLElement {
-  return h("img", {
-    class: className,
-    src: `/api/rooms/${state.code}/qr.svg?u=${encodeURIComponent(state.joinUrl)}`,
-    alt: `QR-Code zum Beitreten: ${state.joinUrl}`,
-  });
+// Lobby und Pause-Overlay sind nie gleichzeitig sichtbar, also reicht ein <img>, das bei jedem
+// Rendern wiederverwendet wird, damit der QR-Code nicht neu lädt.
+let qrImage: HTMLImageElement | undefined;
+
+function qr(state: PublicState): HTMLElement {
+  const src = `/api/rooms/${state.code}/qr.svg`;
+  if (qrImage?.getAttribute("src") !== src) {
+    qrImage = h("img", { class: "qr", src, alt: `QR-Code zum Beitreten: ${state.joinUrl}` });
+  }
+  return qrImage;
 }
 
 function joinInfo(state: PublicState): HTMLElement {
@@ -135,7 +139,7 @@ function gameView(state: PublicState, previous: PublicState | undefined): HTMLEl
   const nodes: HTMLElement[] = [header, grid];
 
   if (state.phase === "finished" && state.winner) {
-    const loser: TeamId = state.winner === "a" ? "b" : "a";
+    const loser = otherTeam(state.winner);
     const reason =
       state.winReason === "assassin"
         ? `${state.teams[loser].name} hat den Attentäter aufgedeckt.`

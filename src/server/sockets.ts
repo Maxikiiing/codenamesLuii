@@ -17,6 +17,7 @@ import { drawWords, loadWordList, wordListInfos } from "./words.js";
 
 export const DEFAULT_WORD_LIST = "de-standard";
 const WORD_LIST_CACHE_MS = 5000;
+const VALID_HOST = /^(?:[A-Za-z0-9.-]{1,253}|\[[0-9A-Fa-f:.]{2,45}\])(?::\d{1,5})?$/;
 
 interface SocketData {
   code?: string;
@@ -74,7 +75,8 @@ export function registerSockets(io: AppServer, manager: RoomManager, options: So
   function baseUrlFor(socket: AppSocket): string {
     if (options.publicUrl) return options.publicUrl.replace(/\/+$/, "");
     const { headers } = socket.handshake;
-    const host = headers.host ?? "localhost";
+    // Nur plausible Host-Angaben (Name oder IP, optional mit Port) übernehmen.
+    const host = headers.host && VALID_HOST.test(headers.host) ? headers.host : "localhost";
     // Hinter einem HTTPS-Reverse-Proxy das Protokoll aus dem Proxy-Header übernehmen.
     const forwarded = String(headers["x-forwarded-proto"] ?? "").split(",")[0].trim();
     const proto = forwarded === "https" ? "https" : "http";

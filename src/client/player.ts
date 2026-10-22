@@ -1,6 +1,6 @@
 // Player: Handy eines Vorgebers. Zeigt die geheime Karte und erlaubt Aufdecken und Zugende.
 
-import { TEAM_IDS, type PlayerState, type PublicState, type TeamId } from "../shared/types.js";
+import { otherTeam, TEAM_IDS, type PlayerState, type PublicState, type TeamId } from "../shared/types.js";
 import { cardColors, teamColor } from "./colors.js";
 import { teamEditor } from "./lobby.js";
 import { clearToken, loadToken, request, saveToken, socket } from "./net.js";
@@ -119,7 +119,7 @@ function lobbyView(state: PlayerState): HTMLElement {
     { class: "player-lobby" },
     h("p", { class: "muted" }, `Raum ${state.code} · Du bist Vorgeber von`),
     teamEditor(state, state.team, true),
-    teamEditor(state, state.team === "a" ? "b" : "a", false),
+    teamEditor(state, otherTeam(state.team), false),
     h(
       "p",
       { class: "hint" },
