@@ -4,7 +4,7 @@ import { MAX_CLUE_LENGTH, MAX_CLUE_NUMBER, MIN_CLUE_NUMBER, otherTeam, TEAM_IDS,
 import { cardColors, teamColor } from "./colors.js";
 import { modeSelector, teamEditor } from "./lobby.js";
 import { clearToken, loadToken, request, saveToken, socket } from "./net.js";
-import { closeDialog, confirmDialog, errorPage, gearButton, h, mount, run, teamLabel, toast } from "./ui.js";
+import { aiThoughtBox, closeDialog, confirmDialog, errorPage, gearButton, h, mount, run, teamLabel, toast } from "./ui.js";
 
 export function startPlayer(root: HTMLElement, code: string): void {
   document.body.classList.add("view-player");
@@ -190,15 +190,15 @@ function cluePanel(state: PlayerState, myTurn: boolean): HTMLElement {
       ` · Versuche: ${clue.guesses.length} / ${clue.number + 1}`,
     );
   }
-  if (myTurn) return clueForm();
+  if (myTurn && !state.aiThinking) return clueForm();
   return h("div", { class: "clue-current" }, "Warte auf ", teamLabel(state, state.currentTeam));
 }
 
 function gameView(state: PlayerState): HTMLElement {
   const myTurn = state.phase === "playing" && state.currentTeam === state.team;
   const aiMode = state.mode === "ai";
-  // Im KI-Modus erst nach dem Hinweis aufdecken.
-  const canReveal = myTurn && (!aiMode || Boolean(state.currentClue));
+  // Im KI-Modus deckt die KI auf, der Vorgeber gibt nur den Hinweis.
+  const canReveal = myTurn && !aiMode;
   const mine = teamColor(state.teams, state.team);
 
   let statusText: Node;
@@ -233,6 +233,7 @@ function gameView(state: PlayerState): HTMLElement {
           class: `card type-${type}${card.revealed ? " revealed" : ""}`,
           style: { background: c.bg, color: c.fg },
           disabled: !canReveal || card.revealed,
+          tabIndex: aiMode ? -1 : 0,
           "aria-label": `${card.word}${card.revealed ? " (aufgedeckt)" : ""}`,
           onclick: async () => {
             if (await confirmDialog(`„${card.word}“ aufdecken?`, null, "Aufdecken")) {
@@ -254,7 +255,9 @@ function gameView(state: PlayerState): HTMLElement {
     }),
   );
 
-  const endTurn = h(
+  const endTurn =
+    !aiMode &&
+    h(
     "button",
     {
       class: "btn primary big end-turn",
@@ -265,14 +268,15 @@ function gameView(state: PlayerState): HTMLElement {
         }
       },
     },
-    "Zug beenden",
-  );
+      "Zug beenden",
+    );
 
   return h(
     "div",
     { class: `player-game phase-${state.phase}` },
     status,
     aiMode && state.phase !== "finished" && cluePanel(state, myTurn),
+    aiThoughtBox(state),
     grid,
     remaining,
     endTurn,

@@ -140,19 +140,22 @@ describe("Zug mit Hinweis", () => {
     expect(game.giveClue(room, "a", "Pflanze", 1).ok).toBe(false);
   });
 
-  it("ohne Hinweis kann nicht aufgedeckt und kein Zug beendet werden", () => {
+  it("die KI deckt nur mit Hinweis auf, Vorgeber decken im KI-Modus nie selbst auf", () => {
     const room = aiGame();
+    expect(game.aiReveal(room, A(0)).ok).toBe(false);
+    game.giveClue(room, "a", "Tier", 2);
     expect(game.reveal(room, "a", A(0)).ok).toBe(false);
     expect(game.endTurn(room, "a").ok).toBe(false);
+    expect(game.aiReveal(room, A(0)).ok).toBe(true);
   });
 
   it("AK5: Zahl 2, drei eigene Karten → Zug endet nach dem dritten Versuch", () => {
     const room = aiGame();
     game.giveClue(room, "a", "Tier", 2);
-    game.reveal(room, "a", A(0));
-    game.reveal(room, "a", A(1));
+    game.aiReveal(room, A(0));
+    game.aiReveal(room, A(1));
     expect(room.currentTeam).toBe("a");
-    game.reveal(room, "a", A(2));
+    game.aiReveal(room, A(2));
     expect(room.currentTeam).toBe("b");
     expect(room.clues[0].stopped).toBe("limit");
     expect(room.clues[0].guesses.map((g) => g.type)).toEqual(["a", "a", "a"]);
@@ -162,35 +165,37 @@ describe("Zug mit Hinweis", () => {
   it("eine falsche Karte beendet den Zug und wird als Ergebnis gespeichert", () => {
     const room = aiGame();
     game.giveClue(room, "a", "Tier", 2);
-    game.reveal(room, "a", A(0));
-    game.reveal(room, "a", NEUTRAL);
+    game.aiReveal(room, A(0));
+    game.aiReveal(room, NEUTRAL);
     expect(room.currentTeam).toBe("b");
     expect(room.clues[0]).toMatchObject({ stopped: "wrong", guesses: [{ type: "a" }, { type: "neutral" }] });
   });
 
-  it("„Zug beenden“ beendet den Hinweis freiwillig, danach braucht das andere Team einen eigenen", () => {
+  it("hört die KI auf, ist das andere Team mit einem eigenen Hinweis dran", () => {
     const room = aiGame();
     game.giveClue(room, "a", "Tier", 2);
-    game.reveal(room, "a", A(0));
-    expect(game.endTurn(room, "a").ok).toBe(true);
+    game.aiReveal(room, A(0));
+    expect(game.endAiTurn(room, "choice").ok).toBe(true);
     expect(room.clues[0].stopped).toBe("choice");
-    expect(game.reveal(room, "b", B(0)).ok).toBe(false);
+    expect(room.currentTeam).toBe("b");
+    expect(game.aiReveal(room, B(0)).ok).toBe(false);
     expect(game.giveClue(room, "b", "Pflanze", 1).ok).toBe(true);
     expect(room.clues).toHaveLength(2);
   });
 
-  it("AK12: solange die KI rät, lehnt der Server Aufdecken und Zugende ab", () => {
+  it("AK12: solange die KI rät, lehnt der Server Aufdecken, Zugende und Hinweise ab", () => {
     const room = aiGame();
     game.giveClue(room, "a", "Tier", 2);
     room.aiThinking = true;
-    expect(game.reveal(room, "a", A(0)).ok).toBe(false);
-    expect(game.endTurn(room, "a").ok).toBe(false);
+    for (const res of [game.reveal(room, "a", A(0)), game.endTurn(room, "a"), game.giveClue(room, "a", "Pflanze", 1)]) {
+      expect(res.ok).toBe(false);
+    }
   });
 
   it("AK12b: Undo ist im KI-Modus gesperrt, auch wenn die KI nicht rät", () => {
     const room = aiGame();
     game.giveClue(room, "a", "Tier", 2);
-    game.reveal(room, "a", A(0));
+    game.aiReveal(room, A(0));
     const res = game.undo(room);
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error).toBe("Im KI-Modus nicht verfügbar.");

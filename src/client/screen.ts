@@ -4,7 +4,7 @@ import { otherTeam, TEAM_IDS, type PublicState, type TeamId } from "../shared/ty
 import { cardColors, teamColor } from "./colors.js";
 import { modeSelector, teamEditor } from "./lobby.js";
 import { request, socket } from "./net.js";
-import { closeDialog, confirmDialog, errorPage, gearButton, h, mount, run, teamLabel } from "./ui.js";
+import { aiThoughtBox, closeDialog, confirmDialog, errorPage, gearButton, h, mount, run, teamLabel } from "./ui.js";
 
 export function startScreen(root: HTMLElement, code: string): void {
   document.body.classList.add("view-screen");
@@ -139,6 +139,8 @@ function gameView(state: PublicState, previous: PublicState | undefined): HTMLEl
 
   const nodes: HTMLElement[] = [header];
   if (state.mode === "ai" && state.phase !== "finished") nodes.push(clueBar(state));
+  const thought = aiThoughtBox(state);
+  if (thought) nodes.push(thought);
   nodes.push(grid);
 
   if (state.phase === "finished" && state.winner) {

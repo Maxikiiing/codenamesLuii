@@ -32,3 +32,20 @@ Zuordnung der Akzeptanzkriterien aus [`specs/001-codenames.md`](specs/001-codena
 3. Zwei Handys scannen den QR-Code, jedes wählt ein Team.
 4. Eine Runde spielen, dabei einmal ein Handy neu laden und einmal ⚙ → Undo testen.
 5. Dasselbe einmal auf dem Windows-PC (Firewall-Abfrage bestätigen).
+
+## Spec 002 – KI-Rater
+
+Automatisiert: AK1–AK12b in `test/ai-mode.test.ts`, `test/ai.test.ts`, `test/ai-sockets.test.ts`, `test/ollama.test.ts` (Fake-Ollama) und AK1 zusätzlich in der E2E-Abnahme.
+
+### AK13 – manuelle Abnahme auf dem Windows-PC
+
+1. Ollama installiert und läuft, dann `docker compose --profile ki up -d --build`.
+2. Warten, bis `docker compose logs ollama-pull` „Fertig.“ oder „schon da“ meldet. „KI-Rater“ wird in der Lobby ohne Neuladen wählbar.
+3. Eine komplette Runde im KI-Modus spielen.
+
+| Prüfpunkt | Ergebnis |
+|---|---|
+| KI rät nachvollziehbar (Gedanken passen zu den Hinweisen) | |
+| In mindestens einem Zug äußert die KI Unsicherheit oder hört früher auf | |
+| Keine Antwort reißt das 45-s-Limit (keine Meldung „zu lange überlegt“) | |
+| Container erreicht Ollama über `host.docker.internal` **ohne** `OLLAMA_HOST=0.0.0.0` (ja/nein) | |

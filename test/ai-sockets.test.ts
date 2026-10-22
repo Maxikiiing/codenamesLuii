@@ -3,6 +3,8 @@ import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { io as connect, type Socket } from "socket.io-client";
 import { createApp, type App } from "../src/server/app.js";
+import type { ChatClient } from "../src/server/ollama.js";
+import type { SocketOptions } from "../src/server/sockets.js";
 import type {
   Ack,
   Action,
@@ -29,7 +31,7 @@ afterEach(async () => {
 });
 
 /** Server mit steuerbarer Verfügbarkeitsprüfung. */
-async function server(initial?: AiStatus, aiRecheckMs = 30) {
+async function server(initial?: AiStatus, aiRecheckMs = 30, extra: Partial<SocketOptions> = {}) {
   const probe = { status: initial, calls: 0, fail: false };
   app = createApp({
     wordsDir: path.resolve("words"),
@@ -41,6 +43,7 @@ async function server(initial?: AiStatus, aiRecheckMs = 30) {
         }
       : undefined,
     aiRecheckMs,
+    ...extra,
   });
   await new Promise<void>((resolve) => app!.httpServer.listen(0, "127.0.0.1", resolve));
   const url = `http://127.0.0.1:${(app.httpServer.address() as AddressInfo).port}`;
@@ -155,17 +158,44 @@ describe("Moduswahl über Sockets", () => {
   });
 });
 
-describe("Hinweis über Sockets", () => {
-  async function aiGame() {
-    const s = await server(READY, 60_000);
+/** Fake-Ollama: liefert die vorgegebenen Antworten der Reihe nach, merkt sich die Prompts. */
+function fakeClient(answers: (string | ((signal: AbortSignal) => Promise<string>))[]) {
+  const prompts: string[] = [];
+  const client: ChatClient = {
+    async chat(messages, signal) {
+      prompts.push(messages.map((m) => m.content).join("\n"));
+      const next = answers.shift();
+      if (next === undefined) return new Promise<string>(() => {}); // hängt, bis abgebrochen wird
+      return typeof next === "string" ? next : next(signal);
+    },
+  };
+  return { client, prompts, answers };
+}
+
+const answer = (thought: string, guess: string | null) => JSON.stringify({ thought, guess });
+
+describe("KI-Zug über Sockets", () => {
+  async function aiGame(answers: Parameters<typeof fakeClient>[0] = [], extra: Partial<SocketOptions> = {}) {
+    const fake = fakeClient(answers);
+    const s = await server(READY, 60_000, { aiClient: fake.client, aiPause: () => 100, ...extra });
     await act(s.screen, { type: "setMode", mode: "ai" });
     await act(s.screen, { type: "startGame" });
     await settle();
     const state = latest<PlayerState>(s.a);
     const active = state.currentTeam === "a" ? s.a : s.b;
     const passive = active === s.a ? s.b : s.a;
-    return { ...s, state, active, passive };
+    const own = state.key.map((t, i) => (t === state.currentTeam ? i : -1)).filter((i) => i >= 0);
+    const neutral = state.key.indexOf("neutral");
+    return { ...s, fake, state, active, passive, own, neutral, team: state.currentTeam };
   }
+
+  const waitFor = async (check: () => boolean, ms = 2000) => {
+    const end = Date.now() + ms;
+    while (!check()) {
+      if (Date.now() > end) throw new Error("Zeitüberschreitung beim Warten");
+      await settle(10);
+    }
+  };
 
   it("AK4: ein Feldwort als Hinweis wird mit Fehlermeldung abgelehnt", async () => {
     const { active, state } = await aiGame();
@@ -174,22 +204,125 @@ describe("Hinweis über Sockets", () => {
     if (!res.ok) expect(res.error).toMatch(/zu nah/);
   });
 
-  it("der Hinweis erscheint auf dem Screen, nur das aktive Team darf ihn geben", async () => {
+  it("nur das aktive Team gibt Hinweise, der Screen zeigt ihn", async () => {
     const { screen, active, passive } = await aiGame();
     expect((await act(screen, { type: "giveClue", word: "Xylofon", number: 2 })).ok).toBe(false);
     expect((await act(passive, { type: "giveClue", word: "Xylofon", number: 2 })).ok).toBe(false);
     expect((await act(active, { type: "giveClue", word: "Xylofon", number: 2 })).ok).toBe(true);
     await settle();
     expect(latest(screen).currentClue).toMatchObject({ word: "XYLOFON", number: 2, guesses: [] });
+    expect(latest(screen).aiThinking).toBe(true);
+  });
+
+  it("AK7: der Gedanke steht auf dem Screen, bevor die Karte aufgedeckt wird; AK5: nach Zahl + 1 ist Schluss", async () => {
+    const g = await aiGame();
+    const words = g.own.slice(0, 3).map((i) => g.state.cards[i].word);
+    g.fake.answers.push(...words.map((w) => answer(`Ich nehme ${w}.`, w.toLowerCase())));
+    const times: Record<string, number> = {};
+    g.screen.on("state", (s) => {
+      if (s.aiThought && !times[s.aiThought]) times[s.aiThought] = Date.now();
+      for (const w of words) {
+        if (!times[w] && s.cards.find((c) => c.word === w)?.revealed) times[w] = Date.now();
+      }
+    });
+    await act(g.active, { type: "giveClue", word: "Xylofon", number: 2 });
+    await waitFor(() => latest(g.screen).currentTeam !== g.team);
+    for (const w of words) expect(times[w] - times[`Ich nehme ${w}.`]).toBeGreaterThanOrEqual(90);
+    expect(latest(g.screen)).toMatchObject({ aiThinking: false, remaining: { [g.team]: g.own.length - 3 } });
+  });
+
+  it("AK6: `guess: null` beendet den Zug, der Gedanke bleibt stehen", async () => {
+    const g = await aiGame([answer("Bei dem Hinweis bin ich mir zu unsicher, ich lasse es.", null)]);
+    await act(g.active, { type: "giveClue", word: "Xylofon", number: 2 });
+    await waitFor(() => latest(g.screen).currentTeam !== g.team);
+    expect(latest(g.screen)).toMatchObject({
+      aiThinking: false,
+      aiThought: "Bei dem Hinweis bin ich mir zu unsicher, ich lasse es.",
+      aiThoughtTeam: g.team,
+    });
+    expect(latest(g.screen).cards.every((c) => !c.revealed)).toBe(true);
+  });
+
+  it("AK10: zweimal ein Wort, das nicht auf dem Feld liegt → „Die KI ist ratlos …“", async () => {
+    const g = await aiGame([answer("Vielleicht Mond?", "MONDLANDUNG"), "kein json"]);
+    await act(g.active, { type: "giveClue", word: "Xylofon", number: 2 });
+    await waitFor(() => latest(g.screen).currentTeam !== g.team);
+    expect(latest(g.screen).aiThought).toBe("Die KI ist ratlos und gibt den Zug ab.");
+    expect(g.fake.prompts[1]).toMatch(/MONDLANDUNG.*liegt nicht verdeckt/);
+  });
+
+  it("AK11: antwortet Ollama nicht rechtzeitig, endet der Zug und das Spiel bleibt bedienbar", async () => {
+    const g = await aiGame([], { aiStepTimeoutMs: 100 });
+    await act(g.active, { type: "giveClue", word: "Xylofon", number: 2 });
+    await waitFor(() => latest(g.screen).currentTeam !== g.team);
+    expect(latest(g.screen)).toMatchObject({ aiThinking: false, aiThought: "Die KI hat zu lange überlegt und gibt den Zug ab." });
+    expect((await act(g.passive, { type: "giveClue", word: "Zebra", number: 1 })).ok).toBe(true);
+  });
+
+  it("AK12: solange die KI rät, lehnt der Server Aufdecken, Zugende und neue Hinweise ab", async () => {
+    const g = await aiGame();
+    await act(g.active, { type: "giveClue", word: "Xylofon", number: 2 });
+    for (const action of [
+      { type: "reveal", index: g.own[0] },
+      { type: "endTurn" },
+      { type: "giveClue", word: "Zebra", number: 1 },
+    ] as Action[]) {
+      expect((await act(g.active, action)).ok).toBe(false);
+    }
   });
 
   it("AK12b: Undo ist im KI-Modus gesperrt und im State als nicht möglich markiert", async () => {
-    const { screen, active, state } = await aiGame();
-    await act(active, { type: "giveClue", word: "Xylofon", number: 2 });
-    const own = state.key.findIndex((t) => t === state.currentTeam);
-    expect((await act(active, { type: "reveal", index: own })).ok).toBe(true);
+    const g = await aiGame();
+    g.fake.answers.push(answer("Klar.", g.state.cards[g.own[0]].word), answer("Genug.", null));
+    await act(g.active, { type: "giveClue", word: "Xylofon", number: 2 });
+    await waitFor(() => latest(g.screen).currentTeam !== g.team);
+    expect(latest(g.screen).canUndo).toBe(false);
+    expect((await act(g.screen, { type: "undo" })).ok).toBe(false);
+  });
+
+  it("Pause verwirft den laufenden Schritt, nach dem Fortsetzen fragt die KI neu", async () => {
+    const g = await aiGame();
+    await act(g.active, { type: "giveClue", word: "Xylofon", number: 2 });
+    await waitFor(() => g.fake.prompts.length === 1);
+    expect((await act(g.screen, { type: "releaseSlot", team: g.team })).ok).toBe(true);
     await settle();
-    expect(latest(screen).canUndo).toBe(false);
-    expect((await act(screen, { type: "undo" })).ok).toBe(false);
+    expect(latest(g.screen)).toMatchObject({ phase: "paused", aiThinking: false });
+    g.fake.answers.push(answer("Ich höre auf.", null));
+    const rejoin = await (async () => {
+      const c = connect(`http://127.0.0.1:${(app!.httpServer.address() as AddressInfo).port}`, {
+        transports: ["websocket"],
+        forceNew: true,
+      }) as Client;
+      c.states = [];
+      clients.push(c);
+      await new Promise<void>((resolve) => c.on("connect", () => resolve()));
+      return c;
+    })();
+    await emitAck(rejoin, "joinPlayer", { code: latest(g.screen).code, team: g.team });
+    await waitFor(() => latest(g.screen).currentTeam !== g.team);
+    expect(g.fake.prompts).toHaveLength(2);
+    expect(latest(g.screen).aiThought).toBe("Ich höre auf.");
+  });
+
+  it("„Neue Runde“ bricht die laufende Anfrage ab", async () => {
+    let aborted = false;
+    const g = await aiGame([
+      (signal) =>
+        new Promise((_, reject) => signal.addEventListener("abort", () => ((aborted = true), reject(new Error("abort"))))),
+    ]);
+    await act(g.active, { type: "giveClue", word: "Xylofon", number: 2 });
+    await waitFor(() => g.fake.prompts.length === 1);
+    await act(g.screen, { type: "newRound" });
+    await settle();
+    expect(aborted).toBe(true);
+    expect(latest(g.screen)).toMatchObject({ phase: "lobby", aiThinking: false, mode: "ai" });
+    expect(latest(g.screen).aiThought).toBeUndefined();
+  });
+
+  it("die geheime Karte gelangt nie in den Prompt", async () => {
+    const g = await aiGame([answer("Ich höre auf.", null)]);
+    await act(g.active, { type: "giveClue", word: "Xylofon", number: 2 });
+    await waitFor(() => g.fake.prompts.length === 1);
+    expect(g.fake.prompts[0]).not.toMatch(/Attentäter \(|neutral\)|euer Team\)|Gegner\)/);
   });
 });
