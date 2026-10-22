@@ -162,10 +162,11 @@ type StepResult = { ok: true; thought: string; index: number | null } | { ok: fa
 async function askModel(deps: AiDeps, room: Room, clue: Clue, signal: AbortSignal): Promise<StepResult> {
   const state = deps.publicState();
   const messages = buildPrompt(state, room.clues, clue.team);
+  // Ein Zeitlimit für den ganzen Schritt, auch wenn neu nachgefragt wird.
+  const timeout = AbortSignal.timeout(deps.stepTimeoutMs ?? STEP_TIMEOUT_MS);
+  const stop = AbortSignal.any([signal, timeout]);
   for (let attempt = 0; attempt < 2; attempt++) {
     let content: string;
-    const timeout = AbortSignal.timeout(deps.stepTimeoutMs ?? STEP_TIMEOUT_MS);
-    const stop = AbortSignal.any([signal, timeout]);
     try {
       content = await withAbort(deps.client.chat(messages, stop), stop);
     } catch (e) {
@@ -212,7 +213,11 @@ export async function runAiTurn(room: Room, deps: AiDeps, signal: AbortSignal): 
       await deps.broadcast();
       await sleep((deps.pause ?? readingPause)(step.thought), signal);
       if (!stillCurrent()) return;
-      game.aiReveal(room, step.index);
+      if (!game.aiReveal(room, step.index).ok) {
+        room.aiThought = MSG_CLUELESS;
+        game.endAiTurn(room, "error");
+        return;
+      }
       if (game.activeClue(room) === clue) await deps.broadcast();
     }
   } finally {
