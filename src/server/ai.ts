@@ -68,18 +68,18 @@ export function openEarlierClues(
   team: TeamId,
   current: Clue | undefined,
 ): { clue: Clue; missing: number }[] {
-  const own = clues.filter((clue) => clue.team === team);
-  let caughtUp = own.reduce((sum, clue) => sum + Math.max(0, ownFound(clue) - clue.number), 0);
+  // Der Reihe nach: Überschuss eines Hinweises füllt nur Lücken früherer Hinweise (Spec 002, R2).
   const open: { clue: Clue; missing: number }[] = [];
-  for (const clue of own) {
-    if (clue === current) continue;
-    let missing = Math.max(0, clue.number - ownFound(clue));
-    const filled = Math.min(missing, caughtUp);
-    missing -= filled;
-    caughtUp -= filled;
-    if (missing > 0) open.push({ clue, missing });
+  for (const clue of clues.filter((c) => c.team === team)) {
+    let surplus = Math.max(0, ownFound(clue) - clue.number);
+    for (const entry of open) {
+      const filled = Math.min(entry.missing, surplus);
+      entry.missing -= filled;
+      surplus -= filled;
+    }
+    if (clue !== current) open.push({ clue, missing: Math.max(0, clue.number - ownFound(clue)) });
   }
-  return open;
+  return open.filter((entry) => entry.missing > 0);
 }
 
 /**
