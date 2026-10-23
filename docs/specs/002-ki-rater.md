@@ -53,7 +53,8 @@ Codenames auch dann spielbar machen, wenn zu wenige Leute für zwei Rater-Teams 
    - Der Gedanke erscheint auf dem Screen, **bevor** die Karte aufgedeckt wird. Zwischen Anzeige und Aufdeckung liegt eine Pause, damit man mitlesen kann (Richtwert: 50 ms pro Zeichen, mindestens 2 s, höchstens 10 s).
    - Eigene Farbe: nächster Schritt. Andere Farbe: Zug endet wie bisher automatisch. Attentäter: Team verliert wie bisher.
    - Höchstens **Zahl + 1** Versuche pro Hinweis. Danach endet der Zug automatisch.
-   - Hat die KI so viele eigene Karten gefunden, wie die Zahl angibt, und sind keine Wörter früherer eigener Hinweise mehr offen, endet der Zug automatisch. Der Bonusversuch (Zahl + 1) gibt es nur zum Nachholen offener Wörter früherer Hinweise.
+   - Hat die KI so viele eigene Karten gefunden, wie die Zahl angibt, und sind keine Wörter früherer eigener Hinweise mehr offen, endet der Zug automatisch. Den Bonusversuch (Zahl + 1) gibt es nur zum Nachholen offener Wörter früherer Hinweise.
+   - **Offene Wörter** eines Teams = Summe über alle früheren eigenen Hinweise der Runde von (Zahl − dabei gefundene eigene Karten), mindestens 0, abzüglich aller eigenen Karten, die bei späteren Hinweisen über deren Zahl hinaus gefunden wurden. Ein altes Wort, das später unter einem neuen Hinweis gefunden wird, gilt damit als nicht mehr offen. Eigene Karten, die das gegnerische Team aufdeckt, zählen nicht.
    - Die KI darf jederzeit früher aufhören, auch vor dem ersten Versuch. Dann endet der Zug, und der Screen zeigt ihren Begründungs-Gedanken.
 5. Während die KI rät, sind am Player „Aufdecken“, „Zug beenden“ und die Hinweis-Eingabe gesperrt. Der Vorgeber sieht dieselben Gedanken wie der Screen.
 
