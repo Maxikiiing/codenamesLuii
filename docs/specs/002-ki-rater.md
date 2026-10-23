@@ -53,6 +53,8 @@ Codenames auch dann spielbar machen, wenn zu wenige Leute für zwei Rater-Teams 
    - Der Gedanke erscheint auf dem Screen, **bevor** die Karte aufgedeckt wird. Zwischen Anzeige und Aufdeckung liegt eine Pause, damit man mitlesen kann (Richtwert: 50 ms pro Zeichen, mindestens 2 s, höchstens 10 s).
    - Eigene Farbe: nächster Schritt. Andere Farbe: Zug endet wie bisher automatisch. Attentäter: Team verliert wie bisher.
    - Höchstens **Zahl + 1** Versuche pro Hinweis. Danach endet der Zug automatisch.
+   - Hat die KI so viele eigene Karten gefunden, wie die Zahl angibt, und sind keine Wörter früherer eigener Hinweise mehr offen, endet der Zug automatisch. Den Bonusversuch (Zahl + 1) gibt es nur zum Nachholen offener Wörter früherer Hinweise.
+   - **Offene Wörter** eines Teams = Summe über alle früheren eigenen Hinweise der Runde von (Zahl − dabei gefundene eigene Karten), mindestens 0, abzüglich aller eigenen Karten, die bei späteren Hinweisen über deren Zahl hinaus gefunden wurden. Ein altes Wort, das später unter einem neuen Hinweis gefunden wird, gilt damit als nicht mehr offen. Eigene Karten, die das gegnerische Team aufdeckt, zählen nicht.
    - Die KI darf jederzeit früher aufhören, auch vor dem ersten Versuch. Dann endet der Zug, und der Screen zeigt ihren Begründungs-Gedanken.
 5. Während die KI rät, sind am Player „Aufdecken“, „Zug beenden“ und die Hinweis-Eingabe gesperrt. Der Vorgeber sieht dieselben Gedanken wie der Screen.
 
@@ -99,7 +101,8 @@ Codenames auch dann spielbar machen, wenn zu wenige Leute für zwei Rater-Teams 
 - [ ] **AK2b:** *Gegeben* Start mit `--profile ki`, die Lobby ist offen und das Modell wird noch geladen, *wenn* der Download fertig ist, *dann* wird „KI-Rater“ innerhalb von 10 s ohne Neuladen wählbar.
 - [ ] **AK3:** *Gegeben* Modus „Klassisch“, *wenn* eine Runde gespielt wird, *dann* verhält sich das Spiel wie in Spec 001 (bestehende Tests bleiben grün).
 - [ ] **AK4:** *Gegeben* KI-Modus und Team A am Zug, *wenn* Vorgeber A ein Wort eingibt, das einem verdeckten Feldwort gleicht oder nach der Wortteil-Regel aus R2 verboten ist, *dann* wird der Hinweis abgelehnt und am Player eine Fehlermeldung gezeigt.
-- [ ] **AK5:** *Gegeben* ein gültiger Hinweis mit Zahl 2, *wenn* die KI drei eigene Karten in Folge wählt, *dann* endet der Zug nach dem dritten Versuch automatisch (Zahl + 1).
+- [ ] **AK5c:** *Gegeben* ein Hinweis mit Zahl 2 und keine offenen Wörter früherer eigener Hinweise, *wenn* die KI zwei eigene Karten aufgedeckt hat, *dann* endet der Zug automatisch ohne weiteren Versuch.
+- [ ] **AK5:** *Gegeben* ein gültiger Hinweis mit Zahl 2, *und* ein früherer eigener Hinweis hat noch ein offenes Wort, *wenn* die KI drei eigene Karten in Folge wählt, *dann* endet der Zug nach dem dritten Versuch automatisch (Zahl + 1).
 - [ ] **AK6:** *Gegeben* die KI liefert `guess: null`, *wenn* das vor dem zweiten Versuch passiert, *dann* endet der Zug, und der Gedanke steht auf dem Screen.
 - [ ] **AK7:** *Gegeben* ein KI-Zug läuft, *wenn* ein Gedanke eintrifft, *dann* erscheint er auf dem Screen mindestens 2 s, bevor die zugehörige Karte aufgedeckt wird.
 - [ ] **AK8:** *Gegeben* ein KI-Zug, *wenn* der Prompt gebaut wird, *dann* enthält er keine Typen verdeckter Karten (Unit-Test auf die Prompt-Funktion).
@@ -128,3 +131,4 @@ Codenames auch dann spielbar machen, wenn zu wenige Leute für zwei Rater-Teams 
 - 2026-10-22 (nach Review von PR #6): Undo im KI-Modus gesperrt; Teilwort-Regel gelockert (ab 4 Zeichen, nur Anfang/Ende); KI-Antwort wird normalisiert verglichen; Screen darf den Modus wählen; Verfügbarkeit wird in der Lobby alle 5 s neu geprüft; `OLLAMA_HOST` in Fehlersuche und Abnahme; kein Gesamtlimit pro Zug (bewusst).
 - 2026-10-22: Standardmodell von `qwen2.5:7b` auf `qwen2.5:14b` angehoben (Wunsch von Max, bessere Assoziationen). Beide Teams nutzen dasselbe geladene Modell. Ausweichlösung bei zu langsamen Antworten: `OLLAMA_MODEL=qwen2.5:7b`.
 - 2026-10-22: Standardmodell auf `gemma4:26b-a4b` geändert (Mixture of Experts, ca. 4 Mrd. aktive Parameter, gilt als stark mehrsprachig; Wunsch von Max). Aufruf mit `think: false`. Ausweichlösung bleibt `OLLAMA_MODEL=qwen2.5:7b`.
+- 2026-10-23: Zug endet automatisch, sobald alle Wörter zum aktuellen Hinweis gefunden sind und keine Wörter früherer Hinweise offen sind (kein Versuch ins Blaue). Der Zahl+1-Versuch bleibt nur für offene Wörter früherer Hinweise. Umgesetzt in PR #14.
