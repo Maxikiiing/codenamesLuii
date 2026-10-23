@@ -87,6 +87,7 @@ Bedarf: ca. 18 GB freier Arbeitsspeicher. Bei weniger als 16 GB Grafikspeicher t
 | Läuft, aber der Container erreicht es nicht | Ollama lauscht standardmäßig nur auf `127.0.0.1`. Auf dem Host die Umgebungsvariable `OLLAMA_HOST=0.0.0.0` setzen (Windows: Systemsteuerung → Umgebungsvariablen) und Ollama neu starten. Achtung: Damit ist Ollama im ganzen LAN erreichbar. |
 | Windows-Firewall | Port 11434 zwischen WSL2/Docker und Host freigeben (eingehende Regel für `ollama.exe` erlauben). |
 | Bleibt bei „Modell wird geladen …“ | `docker compose logs ollama-pull` ansehen, ggf. `docker compose --profile ki up -d ollama-pull` erneut starten. |
+| KI gibt oft mit „zu lange überlegt“ ab | Während die KI rät, in PowerShell `ollama ps` aufrufen. Steht unter PROCESSOR nicht `100% GPU`, passt das Modell nicht in den Grafikspeicher und rechnet teilweise auf der CPU. Dann andere Programme mit GPU-Last schließen oder ein kleineres Modell nehmen (`OLLAMA_MODEL=qwen2.5:7b`). Das Spiel lädt das Modell beim Wählen von „KI-Rater“ vor und hält es 60 min im Speicher. |
 | Anderes Modell | `OLLAMA_MODEL` in `.env` setzen (siehe `.env.example`). |
 
 ## Wortlisten

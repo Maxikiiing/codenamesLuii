@@ -197,6 +197,15 @@ describe("KI-Zug über Sockets", () => {
     }
   };
 
+  it("lädt das Modell vor, sobald der KI-Modus gewählt und das Spiel gestartet wird", async () => {
+    let warmUps = 0;
+    const client: ChatClient = { chat: () => new Promise(() => {}), warmUp: async () => void warmUps++ };
+    const s = await server(READY, 60_000, { aiClient: client });
+    await act(s.screen, { type: "setMode", mode: "ai" });
+    await act(s.screen, { type: "startGame" });
+    expect(warmUps).toBe(2);
+  });
+
   it("AK4: ein Feldwort als Hinweis wird mit Fehlermeldung abgelehnt", async () => {
     const { active, state } = await aiGame();
     const res = await act(active, { type: "giveClue", word: state.cards[0].word.toLowerCase(), number: 1 });
@@ -214,9 +223,9 @@ describe("KI-Zug über Sockets", () => {
     expect(latest(screen).aiThinking).toBe(true);
   });
 
-  it("AK7: der Gedanke steht auf dem Screen, bevor die Karte aufgedeckt wird; AK5: nach Zahl + 1 ist Schluss", async () => {
+  it("AK7: der Gedanke steht vor dem Aufdecken auf dem Screen; ohne offene alte Wörter ist nach Zahl Schluss", async () => {
     const g = await aiGame();
-    const words = g.own.slice(0, 3).map((i) => g.state.cards[i].word);
+    const words = g.own.slice(0, 2).map((i) => g.state.cards[i].word);
     g.fake.answers.push(...words.map((w) => answer(`Ich nehme ${w}.`, w.toLowerCase())));
     const times: Record<string, number> = {};
     g.screen.on("state", (s) => {
@@ -228,7 +237,12 @@ describe("KI-Zug über Sockets", () => {
     await act(g.active, { type: "giveClue", word: "Xylofon", number: 2 });
     await waitFor(() => latest(g.screen).currentTeam !== g.team);
     for (const w of words) expect(times[w] - times[`Ich nehme ${w}.`]).toBeGreaterThanOrEqual(90);
-    expect(latest(g.screen)).toMatchObject({ aiThinking: false, remaining: { [g.team]: g.own.length - 3 } });
+    expect(latest(g.screen)).toMatchObject({
+      aiThinking: false,
+      remaining: { [g.team]: g.own.length - 2 },
+      aiThought: "Alle 2 Wörter zu „XYLOFON“ gefunden, ich höre auf.",
+    });
+    expect(g.fake.prompts).toHaveLength(2); // kein dritter Versuch ins Blaue
   });
 
   it("AK6: `guess: null` beendet den Zug, der Gedanke bleibt stehen", async () => {

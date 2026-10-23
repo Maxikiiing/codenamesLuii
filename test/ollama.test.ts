@@ -64,6 +64,26 @@ describe("Chat-Client", () => {
     const client = ollamaChatClient("http://ollama:11434", "gemma4:26b-a4b", spy);
     expect(await client.chat([{ role: "user", content: "Hallo" }], new AbortController().signal)).toBe('{"thought":"x","guess":null}');
     expect(sent?.url).toBe("http://ollama:11434/api/chat");
-    expect(sent?.body).toMatchObject({ model: "gemma4:26b-a4b", format: "json", stream: false, think: false });
+    expect(sent?.body).toMatchObject({
+      model: "gemma4:26b-a4b",
+      format: "json",
+      stream: false,
+      think: false,
+      keep_alive: "60m",
+      options: { num_ctx: 4096, num_predict: 300 },
+    });
+  });
+
+  it("lädt das Modell vorab mit einer leeren Anfrage", async () => {
+    let body: Record<string, unknown> | undefined;
+    const spy = (async (_input: URL | RequestInfo, init?: RequestInit) => {
+      body = JSON.parse(String(init?.body));
+      return Response.json({ done: true });
+    }) as typeof fetch;
+    const client = ollamaChatClient("http://ollama:11434", "gemma4:26b-a4b", spy);
+    const [first, second] = [client.warmUp!(), client.warmUp!()];
+    expect(first).toBe(second); // gleichzeitige Aufrufe teilen sich eine Anfrage
+    await first;
+    expect(body).toMatchObject({ model: "gemma4:26b-a4b", messages: [], keep_alive: "60m" });
   });
 });
