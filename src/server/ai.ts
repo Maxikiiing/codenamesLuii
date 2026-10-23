@@ -59,13 +59,27 @@ function ownFound(clue: Clue): number {
   return clue.guesses.filter((g) => g.type === clue.team).length;
 }
 
-/** Frühere Hinweise von `team`, zu denen noch Wörter fehlen (ohne den aktuellen). */
-export function openEarlierClues(clues: readonly Clue[], team: TeamId): { clue: Clue; missing: number }[] {
-  return clues
-    .slice(0, -1)
-    .filter((clue) => clue.team === team)
-    .map((clue) => ({ clue, missing: clue.number - ownFound(clue) }))
-    .filter((entry) => entry.missing > 0);
+/**
+ * Frühere Hinweise von `team` (ohne `current`), zu denen noch Wörter fehlen. Eigene Treffer über
+ * die Zahl eines späteren Hinweises hinaus gelten als nachgeholt und füllen die ältesten Lücken.
+ */
+export function openEarlierClues(
+  clues: readonly Clue[],
+  team: TeamId,
+  current: Clue | undefined,
+): { clue: Clue; missing: number }[] {
+  const own = clues.filter((clue) => clue.team === team);
+  let caughtUp = own.reduce((sum, clue) => sum + Math.max(0, ownFound(clue) - clue.number), 0);
+  const open: { clue: Clue; missing: number }[] = [];
+  for (const clue of own) {
+    if (clue === current) continue;
+    let missing = Math.max(0, clue.number - ownFound(clue));
+    const filled = Math.min(missing, caughtUp);
+    missing -= filled;
+    caughtUp -= filled;
+    if (missing > 0) open.push({ clue, missing });
+  }
+  return open;
 }
 
 /**
@@ -93,7 +107,7 @@ export function buildPrompt(state: PromptState, clues: readonly Clue[], team: Te
     }
   }
 
-  const open = openEarlierClues(clues, team);
+  const open = openEarlierClues(clues, team, current?.team === team ? current : undefined);
   if (open.length) {
     lines.push(
       "",
@@ -226,7 +240,7 @@ export async function runAiTurn(room: Room, deps: AiDeps, signal: AbortSignal): 
   try {
     while (stillCurrent()) {
       // Alles zum Hinweis gefunden und nichts von früher offen: kein Zusatzversuch ins Blaue.
-      if (ownFound(clue) >= clue.number && openEarlierClues(room.clues, clue.team).length === 0) {
+      if (ownFound(clue) >= clue.number && openEarlierClues(room.clues, clue.team, clue).length === 0) {
         room.aiThought = `Alle ${clue.number} Wörter zu „${clue.word}“ gefunden, ich höre auf.`;
         game.endAiTurn(room, "choice");
         return;

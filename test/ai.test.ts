@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPrompt, parseAnswer, readingPause, type PromptState } from "../src/server/ai.js";
+import { buildPrompt, openEarlierClues, parseAnswer, readingPause, type PromptState } from "../src/server/ai.js";
 import * as game from "../src/server/game.js";
 import { RoomManager } from "../src/server/rooms.js";
 import type { CardType, Clue } from "../src/shared/types.js";
@@ -64,6 +64,29 @@ describe("buildPrompt", () => {
     expect(text).toContain("In diesem Zug bisher: HUND (euer Team), MÜHLE (euer Team).");
     expect(text).toContain("Alle 2 Wörter zu „TIER“ sind gefunden. Rate nichts mehr zu „TIER“.");
     expect(text).not.toContain("Noch offene Wörter");
+  });
+});
+
+describe("openEarlierClues", () => {
+  const clue = (word: string, number: number, types: CardType[], team: "a" | "b" = "a"): Clue => ({
+    team,
+    word,
+    number,
+    guesses: types.map((type, i) => ({ word: `${word}${i}`, type })),
+  });
+
+  it("später nachgeholte Wörter schließen die älteste Lücke", () => {
+    const tier = clue("TIER", 2, ["a", "neutral"]); // 1 offen
+    const meer = clue("MEER", 1, ["a", "a"]); // ein Treffer mehr als die Zahl: TIER nachgeholt
+    const current = clue("BERG", 2, []);
+    expect(openEarlierClues([tier, meer, current], "a", current)).toEqual([]);
+  });
+
+  it("nimmt den aktuellen Hinweis per Referenz aus und ignoriert das andere Team", () => {
+    const tier = clue("TIER", 2, ["a"]);
+    const gegner = clue("NACHT", 3, [], "b");
+    const current = clue("BERG", 2, []);
+    expect(openEarlierClues([tier, current, gegner], "a", current)).toEqual([{ clue: tier, missing: 1 }]);
   });
 });
 

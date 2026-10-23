@@ -80,7 +80,10 @@ describe("Chat-Client", () => {
       body = JSON.parse(String(init?.body));
       return Response.json({ done: true });
     }) as typeof fetch;
-    await ollamaChatClient("http://ollama:11434", "gemma4:26b-a4b", spy).warmUp!();
+    const client = ollamaChatClient("http://ollama:11434", "gemma4:26b-a4b", spy);
+    const [first, second] = [client.warmUp!(), client.warmUp!()];
+    expect(first).toBe(second); // gleichzeitige Aufrufe teilen sich eine Anfrage
+    await first;
     expect(body).toMatchObject({ model: "gemma4:26b-a4b", messages: [], keep_alive: "60m" });
   });
 });
