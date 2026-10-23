@@ -66,7 +66,16 @@ export interface ChatMessage {
 export interface ChatClient {
   /** Liefert den Text der Antwort. Bricht ab, wenn `signal` auslöst. */
   chat(messages: ChatMessage[], signal: AbortSignal): Promise<string>;
+  /** Lädt das Modell vorab in den Speicher, damit der erste KI-Schritt nicht darauf wartet. */
+  warmUp?(): Promise<void>;
 }
+
+/** So lange bleibt das Modell nach der letzten Anfrage geladen (Ollama-Standard: 5 min). */
+export const KEEP_ALIVE = "60m";
+/** Kontextfenster: reicht für Prompt plus Antwort, kleiner ist schneller und spart Grafikspeicher. */
+const NUM_CTX = 4096;
+/** Obergrenze der Antwortlänge, ein Gedanke hat 1 bis 3 Sätze. */
+const NUM_PREDICT = 300;
 
 /** Client für `POST /api/chat` mit JSON-Format und ohne Streaming. */
 export function ollamaChatClient(url: string, model: string, doFetch: typeof fetch = fetch): ChatClient {
@@ -75,13 +84,30 @@ export function ollamaChatClient(url: string, model: string, doFetch: typeof fet
       const res = await doFetch(new URL("/api/chat", url), {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ model, messages, format: "json", stream: false, think: false, options: { temperature: 0.7 } }),
+        body: JSON.stringify({
+          model,
+          messages,
+          format: "json",
+          stream: false,
+          think: false,
+          keep_alive: KEEP_ALIVE,
+          options: { temperature: 0.7, num_ctx: NUM_CTX, num_predict: NUM_PREDICT },
+        }),
         signal,
       });
       if (!res.ok) throw new Error(`Ollama antwortet mit HTTP ${res.status}`);
       const body = (await res.json()) as { message?: { content?: unknown } };
       if (typeof body.message?.content !== "string") throw new Error("Ollama-Antwort ohne Inhalt");
       return body.message.content;
+    },
+    async warmUp() {
+      // Eine Anfrage ohne Nachrichten lädt nur das Modell.
+      const res = await doFetch(new URL("/api/chat", url), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ model, messages: [], keep_alive: KEEP_ALIVE, options: { num_ctx: NUM_CTX } }),
+      });
+      if (!res.ok) throw new Error(`Ollama antwortet mit HTTP ${res.status}`);
     },
   };
 }

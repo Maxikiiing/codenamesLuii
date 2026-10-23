@@ -40,11 +40,12 @@ Regeln:
 - Deckst du eine Karte deines Teams auf, darfst du weiterraten.
 - Eine neutrale Karte oder eine Karte des Gegners beendet deinen Zug, die Gegnerkarte hilft dem Gegner sogar.
 - Deckst du den Attentäter auf, verliert dein Team sofort.
-- Pro Hinweis hast du höchstens Zahl + 1 Versuche. Den Extraversuch kannst du nutzen, um Wörter aus früheren Hinweisen deines Teams nachzuholen, die noch nicht gefunden wurden.
+- Zum aktuellen Hinweis gehören genau so viele Wörter, wie die Zahl sagt, nie mehr. Hast du so viele gefunden, gibt es dazu nichts mehr zu raten.
+- Einen einzigen Zusatzversuch gibt es nur, um ein noch offenes Wort aus einem früheren Hinweis deines Teams nachzuholen. Diese offenen Hinweise stehen im Prompt. Denk dabei an das frühere Hinweiswort, nicht an das aktuelle.
 - Du darfst jederzeit aufhören, auch vor dem ersten Versuch.
 
 So spielst du:
-- Denk laut auf Deutsch in 1 bis 3 Sätzen, sprich die Mitspieler mit „du“ bzw. „ihr“ an. Wäge Kandidaten ab und sag offen, wenn du unsicher bist.
+- Denk laut auf Deutsch in 1 bis 3 kurzen Sätzen, sprich die Mitspieler mit „du“ bzw. „ihr“ an. Wäge Kandidaten ab und sag offen, wenn du unsicher bist.
 - Geh kein unnötiges Risiko ein. Wenn kein Wort mehr gut passt, hör lieber auf.
 - Wähle nur Wörter, die noch verdeckt auf dem Feld liegen, und schreib sie genau so wie auf dem Feld.
 
@@ -52,6 +53,20 @@ Antworte ausschließlich mit JSON in dieser Form:
 {"thought": "dein lauter Gedanke", "guess": "WORT"}
 oder, wenn du aufhörst:
 {"thought": "warum du aufhörst", "guess": null}`;
+
+/** Eigene Treffer zu einem Hinweis. */
+function ownFound(clue: Clue): number {
+  return clue.guesses.filter((g) => g.type === clue.team).length;
+}
+
+/** Frühere Hinweise von `team`, zu denen noch Wörter fehlen (ohne den aktuellen). */
+export function openEarlierClues(clues: readonly Clue[], team: TeamId): { clue: Clue; missing: number }[] {
+  return clues
+    .slice(0, -1)
+    .filter((clue) => clue.team === team)
+    .map((clue) => ({ clue, missing: clue.number - ownFound(clue) }))
+    .filter((entry) => entry.missing > 0);
+}
 
 /**
  * Baut den Prompt für einen KI-Schritt. Reine Funktion: nutzt nur öffentlich sichtbare Karten
@@ -74,19 +89,31 @@ export function buildPrompt(state: PromptState, clues: readonly Clue[], team: Te
     lines.push("", "Bisherige Hinweise dieser Runde:");
     for (const clue of earlier) {
       const who = clue.team === team ? "Dein Team" : "Gegner";
-      const found = clue.guesses.filter((g) => g.type === clue.team).length;
-      const rest = clue.team === team && found < clue.number ? `, noch ${clue.number - found} offen` : "";
-      lines.push(`- ${who}: „${clue.word}“ ${clue.number} → ${guessList(clue, team)}${rest}`);
+      lines.push(`- ${who}: „${clue.word}“ ${clue.number} → ${guessList(clue, team)}`);
     }
   }
 
-  if (current && current.team === team) {
-    const left = current.number + 1 - current.guesses.length;
+  const open = openEarlierClues(clues, team);
+  if (open.length) {
     lines.push(
       "",
-      `Aktueller Hinweis: „${current.word}“ ${current.number}`,
-      `In diesem Zug bisher: ${guessList(current, team)}. Du hast noch ${left} ${left === 1 ? "Versuch" : "Versuche"}.`,
+      "Noch offene Wörter aus früheren Hinweisen deines Teams:",
+      ...open.map(({ clue, missing }) => `- „${clue.word}“: noch ${missing} ${missing === 1 ? "Wort" : "Wörter"} nicht gefunden`),
     );
+  }
+
+  if (current && current.team === team) {
+    const found = ownFound(current);
+    lines.push("", `Aktueller Hinweis: „${current.word}“ ${current.number}`, `In diesem Zug bisher: ${guessList(current, team)}.`);
+    if (found < current.number) {
+      const words = current.number === 1 ? "1 Wort" : `${current.number} Wörter`;
+      lines.push(`Zu „${current.word}“ gehören genau ${words}, ${found} davon hast du gefunden.`);
+    } else {
+      lines.push(
+        `Alle ${current.number} Wörter zu „${current.word}“ sind gefunden. Rate nichts mehr zu „${current.word}“.`,
+        "Du kannst einen Zusatzversuch für ein offenes Wort aus einem früheren Hinweis nutzen, wenn du dir sicher bist, sonst hör auf.",
+      );
+    }
   }
 
   lines.push("", "Welches Wort deckst du als Nächstes auf, oder hörst du auf?");
@@ -198,6 +225,12 @@ export async function runAiTurn(room: Room, deps: AiDeps, signal: AbortSignal): 
   await deps.broadcast();
   try {
     while (stillCurrent()) {
+      // Alles zum Hinweis gefunden und nichts von früher offen: kein Zusatzversuch ins Blaue.
+      if (ownFound(clue) >= clue.number && openEarlierClues(room.clues, clue.team).length === 0) {
+        room.aiThought = `Alle ${clue.number} Wörter zu „${clue.word}“ gefunden, ich höre auf.`;
+        game.endAiTurn(room, "choice");
+        return;
+      }
       const step = await askModel(deps, room, clue, signal);
       if (!stillCurrent()) return;
       if (!step.ok) {

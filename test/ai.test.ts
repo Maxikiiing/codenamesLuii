@@ -51,15 +51,19 @@ describe("buildPrompt", () => {
       { team: "a", word: "MÜLLER", number: 1, guesses: [] },
     ];
     const text = prompt(publicStateWith(TYPES, [1, 2, 3]), clues);
-    expect(text).toContain("- Dein Team: „TIER“ 2 → HUND (euer Team), BANK (neutral), noch 1 offen");
+    expect(text).toContain("- Dein Team: „TIER“ 2 → HUND (euer Team), BANK (neutral)");
     expect(text).toContain("- Gegner: „NACHT“ 1 → KATZE (Gegner)");
+    expect(text).toContain("Noch offene Wörter aus früheren Hinweisen deines Teams:\n- „TIER“: noch 1 Wort nicht gefunden");
     expect(text).toContain("Aktueller Hinweis: „MÜLLER“ 1");
-    expect(text).toContain("Du hast noch 2 Versuche.");
+    expect(text).toContain("Zu „MÜLLER“ gehören genau 1 Wort, 0 davon hast du gefunden.");
   });
 
-  it("zählt die Versuche im laufenden Zug herunter", () => {
+  it("sind alle Wörter zum Hinweis gefunden, verbietet der Prompt weiteres Raten dazu", () => {
     const clues: Clue[] = [{ team: "a", word: "TIER", number: 2, guesses: [{ word: "HUND", type: "a" }, { word: "MÜHLE", type: "a" }] }];
-    expect(prompt(publicStateWith(TYPES, [0, 1]), clues)).toContain("In diesem Zug bisher: HUND (euer Team), MÜHLE (euer Team). Du hast noch 1 Versuch.");
+    const text = prompt(publicStateWith(TYPES, [0, 1]), clues);
+    expect(text).toContain("In diesem Zug bisher: HUND (euer Team), MÜHLE (euer Team).");
+    expect(text).toContain("Alle 2 Wörter zu „TIER“ sind gefunden. Rate nichts mehr zu „TIER“.");
+    expect(text).not.toContain("Noch offene Wörter");
   });
 });
 

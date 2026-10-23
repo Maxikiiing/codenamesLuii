@@ -157,6 +157,11 @@ export function registerSockets(io: AppServer, manager: RoomManager, options: So
     if (!aiStatus.enabled && entry.room.phase === "lobby") entry.room.mode = "classic";
   }
 
+  /** Lädt das Modell vorab, sobald der KI-Modus gewählt oder ein Spiel darin gestartet wird. */
+  function warmUpAi(): void {
+    options.aiClient?.warmUp?.().catch((e) => console.error("Modell konnte nicht vorgeladen werden:", e));
+  }
+
   /** Fehler, wenn der KI-Modus gerade nicht nutzbar ist. */
   async function requireAi(): Promise<Ack | undefined> {
     const status = await refreshAi();
@@ -235,6 +240,7 @@ export function registerSockets(io: AppServer, manager: RoomManager, options: So
         if (action.mode === "ai" && room.phase === "lobby") {
           const unavailable = await requireAi();
           if (unavailable) return unavailable;
+          warmUpAi();
         }
         return game.setMode(room, action.mode);
       }
@@ -254,6 +260,7 @@ export function registerSockets(io: AppServer, manager: RoomManager, options: So
         } catch (e) {
           return err(e instanceof Error ? e.message : "Wortliste konnte nicht geladen werden.");
         }
+        if (room.mode === "ai") warmUpAi();
         return game.startGame(room, words);
       }
       case "reveal":
